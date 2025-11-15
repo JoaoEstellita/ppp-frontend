@@ -96,7 +96,7 @@ export async function uploadPPP(caseId: string, file: File): Promise<Case> {
     const formData = new FormData();
     formData.append("ppp", file);
 
-    const response = await fetch(`${API_BASE_URL}/cases/${caseId}/upload`, {
+    const response = await fetch(`${API_BASE_URL}/cases/${caseId}/ppp`, {
       method: "POST",
       body: formData,
     });

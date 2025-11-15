@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getCase, getCaseAnalysis } from "@/lib/api";
 import { Case, AnalysisResult } from "@/lib/types";
@@ -9,7 +9,7 @@ import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 function formatDate(dateString: string): string {
@@ -48,7 +48,7 @@ const analysisBlocksConfig = [
 
 export default function CaseDetailPage({ params }: PageProps) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const { id } = params;
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,12 +61,12 @@ export default function CaseDetailPage({ params }: PageProps) {
         setError(null);
 
         // Buscar o caso
-        const caseResult = await getCase(resolvedParams.id);
+        const caseResult = await getCase(id);
         setCaseData(caseResult);
 
         // Buscar a análise
         try {
-          const analysisResult = await getCaseAnalysis(resolvedParams.id);
+          const analysisResult = await getCaseAnalysis(id);
           setAnalysis(analysisResult);
         } catch (analysisError) {
           // Análise pode não existir ainda, não é erro crítico
@@ -80,7 +80,7 @@ export default function CaseDetailPage({ params }: PageProps) {
     }
 
     fetchData();
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const handleGeneratePDF = () => {
     alert("Funcionalidade em desenvolvimento");
