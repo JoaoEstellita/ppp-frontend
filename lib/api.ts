@@ -109,6 +109,7 @@ export async function createCase(payload: {
 export async function uploadPPP(caseId: string, file: File): Promise<Case> {
   try {
     const formData = new FormData();
+    // manter o campo 'ppp' no FormData conforme contrato com o backend
     formData.append("ppp", file);
 
     const response = await fetch(`${API_BASE_URL}/cases/${caseId}/ppp`, {
@@ -137,5 +138,14 @@ export async function getCaseAnalysis(id: string): Promise<AnalysisResult> {
   } catch (error) {
     throw new Error("Não foi possível comunicar com a API");
   }
+}
+
+// Helpers solicitados: nomes curtos para montar URLs de PPP e relatório
+export function getPPPUrl(id: string): string {
+  return getCasePPPUrl(id);
+}
+
+export function getReportUrl(id: string): string {
+  return getCaseReportUrl(id);
 }
 

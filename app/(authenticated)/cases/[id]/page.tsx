@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getCase, getCaseAnalysis, getCasePPPUrl, getCaseReportUrl } from "@/lib/api";
+import { getCase, getCaseAnalysis, getPPPUrl, getReportUrl } from "@/lib/api";
 import { Case, AnalysisResult } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -85,11 +85,11 @@ export default function CaseDetailPage({ params }: PageProps) {
 
   const handleGenerateReport = () => {
     if (!caseData) return;
-    
+
     setGeneratingReport(true);
-    const url = getCaseReportUrl(caseData.id);
+    const url = getReportUrl(caseData.id);
     window.open(url, "_blank", "noopener,noreferrer");
-    
+
     // Resetar o estado após um breve delay
     setTimeout(() => {
       setGeneratingReport(false);
@@ -146,7 +146,7 @@ export default function CaseDetailPage({ params }: PageProps) {
           </div>
         </Card>
 
-        <Card title="Dados da Empresa">
+  <Card title="Dados da Empresa">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600">Nome</p>
@@ -162,6 +162,20 @@ export default function CaseDetailPage({ params }: PageProps) {
             </div>
           </div>
         </Card>
+
+        {caseData.pppFileName && (
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const url = getPPPUrl(caseData.id);
+                window.open(url, "_blank");
+              }}
+            >
+              Ver PPP (PDF)
+            </Button>
+          </div>
+        )}
 
         <Card title="Informações do Caso">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -187,7 +201,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                 </p>
                 {caseData.pppFileName && (
                   <a
-                    href={getCasePPPUrl(caseData.id)}
+                    href={getPPPUrl(caseData.id)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="ml-4 px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500"
