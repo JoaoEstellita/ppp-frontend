@@ -1,8 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useCases } from "@/lib/caseContext";
+import { getCase, getCaseAnalysis } from "@/lib/api";
+import { Case, AnalysisResult } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
@@ -32,69 +33,73 @@ function getStatusBadgeVariant(
       return "info";
     case "INCOMPLETO":
       return "danger";
-    case "GENÉRICO":
-      return "warning";
     default:
       return "default";
   }
 }
 
-const analysisBlocks = [
-  {
-    id: "5.1",
-    title: "Bloco 5.1 - Dados do Trabalhador",
-    status: "COMPLETO",
-    problems: [
-      "Todos os dados do trabalhador estão preenchidos corretamente.",
-    ],
-  },
-  {
-    id: "5.2",
-    title: "Bloco 5.2 - Dados da Empresa",
-    status: "INCOMPLETO",
-    problems: [
-      "CNPJ não corresponde ao cadastro na Receita Federal.",
-      "Razão social divergente.",
-    ],
-  },
-  {
-    id: "5.3",
-    title: "Bloco 5.3 - Função/Atividade",
-    status: "GENÉRICO",
-    problems: [
-      "Descrição da função muito genérica.",
-      "Falta especificação das atividades realizadas.",
-    ],
-  },
-  {
-    id: "5.4",
-    title: "Bloco 5.4 - Agentes de Risco",
-    status: "COMPLETO",
-    problems: [
-      "Agentes de risco identificados corretamente.",
-    ],
-  },
-  {
-    id: "5.5",
-    title: "Bloco 5.5 - Exames Médicos",
-    status: "INCOMPLETO",
-    problems: [
-      "Falta exame de audiometria.",
-      "Exame de acuidade visual vencido.",
-    ],
-  },
+const analysisBlocksConfig = [
+  { key: "bloco_5_1" as const, title: "Bloco 5.1 - Dados do Trabalhador" },
+  { key: "bloco_5_2" as const, title: "Bloco 5.2 - Dados da Empresa" },
+  { key: "bloco_5_3" as const, title: "Bloco 5.3 - Função/Atividade" },
+  { key: "bloco_5_4" as const, title: "Bloco 5.4 - Agentes de Risco" },
+  { key: "bloco_5_5" as const, title: "Bloco 5.5 - Exames Médicos" },
 ];
 
 export default function CaseDetailPage({ params }: PageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
-  const { getCaseById } = useCases();
-  const caseItem = getCaseById(resolvedParams.id);
+  const [caseData, setCaseData] = useState<Case | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!caseItem) {
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Buscar o caso
+        const caseResult = await getCase(resolvedParams.id);
+        setCaseData(caseResult);
+
+        // Buscar a análise
+        try {
+          const analysisResult = await getCaseAnalysis(resolvedParams.id);
+          setAnalysis(analysisResult);
+        } catch (analysisError) {
+          // Análise pode não existir ainda, não é erro crítico
+          console.log("Análise não disponível ainda");
+        }
+      } catch (err) {
+        setError("Não foi possível carregar os detalhes do caso.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [resolvedParams.id]);
+
+  const handleGeneratePDF = () => {
+    alert("Funcionalidade em desenvolvimento");
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8 text-gray-600">
+        Carregando detalhes do caso...
+      </div>
+    );
+  }
+
+  if (error || !caseData) {
     return (
       <div>
-        <p className="text-red-600">Caso não encontrado.</p>
+        <p className="text-red-600">
+          {error || "Caso não encontrado."}
+        </p>
         <Button onClick={() => router.push("/cases")} className="mt-4">
           Voltar para lista
         </Button>
@@ -102,15 +107,11 @@ export default function CaseDetailPage({ params }: PageProps) {
     );
   }
 
-  const handleGeneratePDF = () => {
-    alert("Funcionalidade em desenvolvimento");
-  };
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">
-          Caso #{caseItem.id}
+          Caso #{caseData.id}
         </h2>
         <Button onClick={() => router.push("/cases")} variant="outline">
           Voltar
@@ -123,13 +124,13 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
-                {caseItem.workerName}
+                {caseData.workerName}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">CPF</p>
               <p className="text-base font-medium text-gray-900">
-                {caseItem.workerCPF}
+                {caseData.workerCPF}
               </p>
             </div>
           </div>
@@ -140,13 +141,13 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
-                {caseItem.companyName}
+                {caseData.companyName}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">CNPJ</p>
               <p className="text-base font-medium text-gray-900">
-                {caseItem.companyCNPJ}
+                {caseData.companyCNPJ}
               </p>
             </div>
           </div>
@@ -157,50 +158,61 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Status</p>
               <div className="mt-1">
-                <Badge variant={getStatusBadgeVariant(caseItem.status)}>
-                  {caseItem.status}
+                <Badge variant={getStatusBadgeVariant(caseData.status)}>
+                  {caseData.status}
                 </Badge>
               </div>
             </div>
             <div>
               <p className="text-sm text-gray-600">Data de Criação</p>
               <p className="text-base font-medium text-gray-900">
-                {formatDate(caseItem.createdAt)}
+                {formatDate(caseData.createdAt)}
               </p>
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-gray-600">Arquivo PPP</p>
               <p className="text-base font-medium text-gray-900">
-                {caseItem.pppFileName}
+                {caseData.pppFileName || "Nenhum arquivo enviado"}
               </p>
             </div>
           </div>
         </Card>
 
-        <Card title="Análise do PPP">
-          <div className="space-y-4">
-            {analysisBlocks.map((block) => (
-              <div
-                key={block.id}
-                className="border border-gray-200 rounded-lg p-4"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="text-base font-semibold text-gray-900">
-                    {block.title}
-                  </h4>
-                  <Badge variant={getStatusBadgeVariant(block.status)}>
-                    {block.status}
-                  </Badge>
-                </div>
-                <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                  {block.problems.map((problem, index) => (
-                    <li key={index}>{problem}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {analysis && (
+          <Card title="Análise do PPP">
+            <div className="space-y-4">
+              {analysisBlocksConfig.map((blockConfig) => {
+                const blockData = analysis.blocks[blockConfig.key];
+                return (
+                  <div
+                    key={blockConfig.key}
+                    className="border border-gray-200 rounded-lg p-4"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="text-base font-semibold text-gray-900">
+                        {blockConfig.title}
+                      </h4>
+                      <Badge variant={getStatusBadgeVariant(blockData.status)}>
+                        {blockData.status}
+                      </Badge>
+                    </div>
+                    {blockData.erros && blockData.erros.length > 0 ? (
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                        {blockData.erros.map((erro, index) => (
+                          <li key={index}>{erro}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        Nenhum problema identificado.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         <div className="flex justify-end">
           <Button onClick={handleGeneratePDF}>
