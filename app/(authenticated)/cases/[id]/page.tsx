@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getCase, getCaseAnalysis } from "@/lib/api";
+import { getCase, getCaseAnalysis, getCasePPPUrl, getCaseReportUrl } from "@/lib/api";
 import { Case, AnalysisResult } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -53,6 +53,7 @@ export default function CaseDetailPage({ params }: PageProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -82,8 +83,17 @@ export default function CaseDetailPage({ params }: PageProps) {
     fetchData();
   }, [id]);
 
-  const handleGeneratePDF = () => {
-    alert("Funcionalidade em desenvolvimento");
+  const handleGenerateReport = () => {
+    if (!caseData) return;
+    
+    setGeneratingReport(true);
+    const url = getCaseReportUrl(caseData.id);
+    window.open(url, "_blank", "noopener,noreferrer");
+    
+    // Resetar o estado após um breve delay
+    setTimeout(() => {
+      setGeneratingReport(false);
+    }, 1000);
   };
 
   if (loading) {
@@ -171,9 +181,21 @@ export default function CaseDetailPage({ params }: PageProps) {
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-gray-600">Arquivo PPP</p>
-              <p className="text-base font-medium text-gray-900">
-                {caseData.pppFileName || "Nenhum arquivo enviado"}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-base font-medium text-gray-900">
+                  {caseData.pppFileName || "Nenhum arquivo enviado"}
+                </p>
+                {caseData.pppFileName && (
+                  <a
+                    href={getCasePPPUrl(caseData.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-4 px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500"
+                  >
+                    Ver PPP
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         </Card>
@@ -215,8 +237,8 @@ export default function CaseDetailPage({ params }: PageProps) {
         )}
 
         <div className="flex justify-end">
-          <Button onClick={handleGeneratePDF}>
-            Gerar Parecer Técnico (PDF)
+          <Button onClick={handleGenerateReport} disabled={generatingReport}>
+            {generatingReport ? "Gerando..." : "Gerar Parecer Técnico (PDF)"}
           </Button>
         </div>
       </div>

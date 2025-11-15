@@ -30,7 +30,22 @@ export interface AnalysisResult {
 }
 
 // Constante da URL base da API
-const API_BASE_URL = "http://localhost:4000";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+
+/**
+ * Retorna a URL para visualizar o PPP de um caso
+ */
+export function getCasePPPUrl(id: string): string {
+  return `${API_BASE_URL}/cases/${id}/ppp`;
+}
+
+/**
+ * Retorna a URL para gerar o relatório (Parecer Técnico) de um caso
+ */
+export function getCaseReportUrl(id: string): string {
+  return `${API_BASE_URL}/cases/${id}/report`;
+}
 
 /**
  * Busca todos os casos
