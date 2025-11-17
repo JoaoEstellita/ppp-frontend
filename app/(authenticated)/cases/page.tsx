@@ -43,6 +43,7 @@ export default function CasesPage() {
         const data = await getCases();
         setCases(data);
       } catch (err) {
+        console.error("Erro ao buscar casos:", err);
         setError("Não foi possível carregar os casos.");
       } finally {
         setLoading(false);

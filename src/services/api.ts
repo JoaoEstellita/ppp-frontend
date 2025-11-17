@@ -2,11 +2,24 @@
 // Este arquivo fornece um conjunto de funções para consumir o backend PPP.
 
 // Leitura da variável de ambiente (compatível com Vite, CRA e Next.js)
-const viteEnv = typeof import.meta !== "undefined" && (import.meta as any).env ? (import.meta as any).env.VITE_API_URL : undefined;
-const nextEnv = typeof process !== "undefined" && process.env ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined;
-const craEnv = typeof process !== "undefined" && process.env ? process.env.REACT_APP_API_URL : undefined;
+const viteEnv =
+  typeof import.meta !== "undefined" && (import.meta as any).env
+    ? (import.meta as any).env.VITE_API_URL
+    : undefined;
 
-export const API_BASE_URL: string = (nextEnv || viteEnv || craEnv || "http://localhost:4000");
+const nextEnv =
+  typeof process !== "undefined" && process.env
+    ? process.env.NEXT_PUBLIC_API_BASE_URL
+    : undefined;
+
+const craEnv =
+  typeof process !== "undefined" && process.env
+    ? process.env.REACT_APP_API_URL
+    : undefined;
+
+// Fallback padrão agora é o backend em produção, NÃO mais localhost
+export const API_BASE_URL: string =
+  nextEnv || viteEnv || craEnv || "https://ppp-backend-sjic.onrender.com";
 
 // Tipos básicos usados pelo frontend
 
@@ -82,22 +95,18 @@ async function handleJsonResponse(response: Response) {
 // 1. getCases
 export async function getCases(): Promise<FrontendCase[]> {
   const res = await fetch(`${API_BASE_URL}/cases`);
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `HTTP error ${res.status}`);
-  }
 
-  const data = await res.json();
+  const raw = await handleJsonResponse(res);
 
-  // mapear created_at (Supabase) para createdAt
-  return data.map((item: any) => ({
+  // Garante o formato esperado no frontend
+  return (raw as any[]).map((item) => ({
     id: item.id,
     status: item.status,
     createdAt: item.created_at ?? null,
     updatedAt: item.updated_at ?? null,
     company: item.company ?? null,
     worker: item.worker ?? null,
-    documents: item.documents ?? item.case_documents ?? null,
+    documents: item.documents ?? item.case_documents ?? [],
     analysis: item.analysis ?? item.case_analysis ?? null,
   }));
 }
@@ -120,12 +129,8 @@ export async function createCase(payload: {
 // 2. getCaseById
 export async function getCaseById(id: string): Promise<FrontendCase> {
   const res = await fetch(`${API_BASE_URL}/cases/${id}`);
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `HTTP error ${res.status}`);
-  }
 
-  const data = await res.json();
+  const data = await handleJsonResponse(res);
 
   return {
     id: data.id,
@@ -134,7 +139,7 @@ export async function getCaseById(id: string): Promise<FrontendCase> {
     updatedAt: data.updated_at ?? null,
     company: data.company ?? null,
     worker: data.worker ?? null,
-    documents: data.documents ?? data.case_documents ?? null,
+    documents: data.documents ?? data.case_documents ?? [],
     analysis: data.analysis ?? data.case_analysis ?? null,
   };
 }
