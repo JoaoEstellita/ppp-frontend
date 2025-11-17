@@ -2,8 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getCase, getCaseAnalysis, getPPPUrl, getReportUrl } from "@/lib/api";
-import { Case, AnalysisResult } from "@/lib/types";
+import {
+  getCaseById,
+  getPPPUrl,
+  getReportUrl,
+  uploadPPP,
+  generateAnalysis,
+  downloadPPP,
+  downloadReport,
+  FrontendCase,
+  AnalysisResult,
+} from "@/src/services/api";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
@@ -49,11 +58,16 @@ const analysisBlocksConfig = [
 export default function CaseDetailPage({ params }: PageProps) {
   const router = useRouter();
   const { id } = params;
-  const [caseData, setCaseData] = useState<Case | null>(null);
+  const [caseData, setCaseData] = useState<FrontendCase | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isGeneratingAnalysis, setIsGeneratingAnalysis] = useState(false);
+  const [isDownloadingPPP, setIsDownloadingPPP] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -62,16 +76,12 @@ export default function CaseDetailPage({ params }: PageProps) {
         setError(null);
 
         // Buscar o caso
-        const caseResult = await getCase(id);
+        const caseResult = await getCaseById(id);
         setCaseData(caseResult);
 
-        // Buscar a análise
-        try {
-          const analysisResult = await getCaseAnalysis(id);
-          setAnalysis(analysisResult);
-        } catch (analysisError) {
-          // Análise pode não existir ainda, não é erro crítico
-          console.log("Análise não disponível ainda");
+        // Se a API já retornar uma análise embutida no case
+        if ((caseResult as any).analysis) {
+          setAnalysis((caseResult as any).analysis as AnalysisResult);
         }
       } catch (err) {
         setError("Não foi possível carregar os detalhes do caso.");
@@ -95,6 +105,102 @@ export default function CaseDetailPage({ params }: PageProps) {
       setGeneratingReport(false);
     }, 1000);
   };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files[0]) setSelectedFile(files[0]);
+    else setSelectedFile(null);
+  };
+
+  const handleUploadPPP = async () => {
+    if (!caseData) return;
+    if (!selectedFile) {
+      alert("Selecione um arquivo PDF antes de enviar.");
+      return;
+    }
+    try {
+      setIsUploading(true);
+      await uploadPPP(caseData.id, selectedFile);
+      alert("Upload concluído com sucesso.");
+      const updated = await getCaseById(caseData.id);
+      setCaseData(updated);
+      if ((updated as any).analysis) setAnalysis((updated as any).analysis as AnalysisResult);
+    } catch (err) {
+      console.error(err);
+      alert("Falha ao enviar PPP.");
+    } finally {
+      setIsUploading(false);
+      setSelectedFile(null);
+    }
+  };
+
+  const handleGenerateAnalysis = async () => {
+    if (!caseData) return;
+    try {
+      setIsGeneratingAnalysis(true);
+      const result = await generateAnalysis(caseData.id);
+      setAnalysis(result);
+      alert("Análise gerada com sucesso.");
+    } catch (err) {
+      console.error(err);
+      alert("Falha ao gerar análise.");
+    } finally {
+      setIsGeneratingAnalysis(false);
+    }
+  };
+
+  const handleDownloadPPP = async () => {
+    if (!caseData) return;
+    try {
+      setIsDownloadingPPP(true);
+      const blob = await downloadPPP(caseData.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ppp_${caseData.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Falha ao baixar o PPP.");
+    } finally {
+      setIsDownloadingPPP(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (!caseData) return;
+    try {
+      setIsDownloadingReport(true);
+      const blob = await downloadReport(caseData.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `parecer_${caseData.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.message || String(err);
+      if (msg.includes("501") || msg.toLowerCase().includes("not implemented")) {
+        alert("Relatório ainda não disponível.");
+      } else {
+        alert("Falha ao baixar o relatório.");
+      }
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  };
+
+  // Informações derivadas
+  const pppDoc = caseData?.documents?.find(
+    (d) => (d.type || "").toString().toLowerCase() === "ppp"
+  );
+  const pppFileName = pppDoc?.fileName || (caseData as any)?.pppFileName;
 
   if (loading) {
     return (
@@ -134,13 +240,13 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
-                {caseData.workerName}
+                {caseData.worker?.name || (caseData as any).workerName || "-"}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">CPF</p>
               <p className="text-base font-medium text-gray-900">
-                {caseData.workerCPF}
+                {caseData.worker?.cpf || (caseData as any).workerCPF || "-"}
               </p>
             </div>
           </div>
@@ -151,31 +257,54 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
-                {caseData.companyName}
+                {caseData.company?.name || (caseData as any).companyName || "-"}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">CNPJ</p>
               <p className="text-base font-medium text-gray-900">
-                {caseData.companyCNPJ}
+                {caseData.company?.cnpj || (caseData as any).companyCNPJ || "-"}
               </p>
             </div>
           </div>
         </Card>
 
-        {caseData.pppFileName && (
-          <div className="flex justify-end mb-4">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                const url = getPPPUrl(caseData.id);
-                window.open(url, "_blank");
-              }}
-            >
-              Ver PPP (PDF)
-            </Button>
+        <Card title="Documentos">
+          <div className="space-y-3">
+            {caseData.documents && caseData.documents.length > 0 ? (
+              <ul className="list-disc list-inside text-sm text-gray-700">
+                {caseData.documents.map((doc: any) => (
+                  <li key={doc.id}>
+                    <strong>{doc.type}</strong> - {doc.fileName || doc.file || "(sem nome)"}
+                    {doc.type && doc.type.toLowerCase() === "ppp" && (
+                      <span className="ml-2 text-sm text-green-600">(PPP cadastrado)</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500">Nenhum documento cadastrado.</p>
+            )}
+
+            <div className="flex items-center space-x-2 mt-2">
+              <input type="file" accept="application/pdf" onChange={handleFileChange} />
+              <Button onClick={handleUploadPPP} disabled={isUploading}>
+                {isUploading ? "Enviando..." : "Enviar PPP"}
+              </Button>
+              {pppFileName && (
+                <Button variant="secondary" onClick={handleDownloadPPP} disabled={isDownloadingPPP}>
+                  {isDownloadingPPP ? "Baixando..." : "Baixar PPP"}
+                </Button>
+              )}
+              <Button onClick={handleGenerateAnalysis} disabled={isGeneratingAnalysis}>
+                {isGeneratingAnalysis ? "Gerando..." : "Gerar análise (motor de regras)"}
+              </Button>
+              <Button onClick={handleDownloadReport} disabled={isDownloadingReport}>
+                {isDownloadingReport ? "Baixando..." : "Baixar parecer (PDF)"}
+              </Button>
+            </div>
           </div>
-        )}
+        </Card>
 
         <Card title="Informações do Caso">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -190,16 +319,16 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Data de Criação</p>
               <p className="text-base font-medium text-gray-900">
-                {formatDate(caseData.createdAt)}
+                {formatDate(caseData.createdAt || "")}
               </p>
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-gray-600">Arquivo PPP</p>
               <div className="flex items-center justify-between">
                 <p className="text-base font-medium text-gray-900">
-                  {caseData.pppFileName || "Nenhum arquivo enviado"}
+                  {pppFileName || "Nenhum arquivo enviado"}
                 </p>
-                {caseData.pppFileName && (
+                {pppFileName && (
                   <a
                     href={getPPPUrl(caseData.id)}
                     target="_blank"

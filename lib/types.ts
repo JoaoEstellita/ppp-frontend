@@ -1,8 +1,8 @@
-// Re-exporta types do api.ts para manter compatibilidade
+// Re-exporta types do serviço de API central para manter compatibilidade
 export type {
   CaseStatus,
   Case,
   BlockAnalysis,
   AnalysisResult,
-} from "./api";
+} from "@/src/services/api";
 

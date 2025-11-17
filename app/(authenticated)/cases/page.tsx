@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getCases } from "@/lib/api";
-import { Case, CaseStatus } from "@/lib/types";
+import { getCases, FrontendCase } from "@/src/services/api";
+import { CaseStatus } from "@/lib/types";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
@@ -29,7 +29,7 @@ function formatDate(dateString: string): string {
 
 export default function CasesPage() {
   const router = useRouter();
-  const [cases, setCases] = useState<Case[]>([]);
+  const [cases, setCases] = useState<FrontendCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,18 +85,18 @@ export default function CasesPage() {
                   </Link>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {caseItem.workerName}
+                  {caseItem.worker?.name || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {caseItem.companyName}
+                  {caseItem.company?.name || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <Badge variant={getStatusBadgeVariant(caseItem.status)}>
+                  <Badge variant={getStatusBadgeVariant(caseItem.status as any)}>
                     {caseItem.status}
                   </Badge>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatDate(caseItem.createdAt)}
+                  {formatDate(caseItem.createdAt || "")}
                 </td>
               </tr>
             ))}
