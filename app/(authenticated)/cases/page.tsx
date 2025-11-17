@@ -22,9 +22,11 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
   }
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("pt-BR");
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("pt-BR");
 }
 
 export default function CasesPage() {
@@ -96,7 +98,7 @@ export default function CasesPage() {
                   </Badge>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatDate(caseItem.createdAt || "")}
+                  {formatDate(caseItem.createdAt)}
                 </td>
               </tr>
             ))}

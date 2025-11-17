@@ -29,16 +29,17 @@ export type FrontendDocument = {
   url?: string;
 };
 
-export type FrontendCase = {
+export interface FrontendCase {
   id: string;
-  status: string;
-  createdAt?: string;
-  updatedAt?: string;
-  company?: FrontendCompany;
-  worker?: FrontendWorker;
+  status: CaseStatus | string;
+  // ISO string vinda do backend (created_at) mapeada para camelCase
+  createdAt: string | null;
+  updatedAt?: string | null;
+  company?: FrontendCompany | null;
+  worker?: FrontendWorker | null;
   documents?: FrontendDocument[];
   analysis?: any;
-};
+}
 
 // Tipo compatível com a estrutura antiga (para retrocompatibilidade com mock data)
 export type Case = {
@@ -81,7 +82,24 @@ async function handleJsonResponse(response: Response) {
 // 1. getCases
 export async function getCases(): Promise<FrontendCase[]> {
   const res = await fetch(`${API_BASE_URL}/cases`);
-  return handleJsonResponse(res);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP error ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  // mapear created_at (Supabase) para createdAt
+  return data.map((item: any) => ({
+    id: item.id,
+    status: item.status,
+    createdAt: item.created_at ?? null,
+    updatedAt: item.updated_at ?? null,
+    company: item.company ?? null,
+    worker: item.worker ?? null,
+    documents: item.documents ?? item.case_documents ?? null,
+    analysis: item.analysis ?? item.case_analysis ?? null,
+  }));
 }
 
 // 1b. createCase
@@ -102,7 +120,23 @@ export async function createCase(payload: {
 // 2. getCaseById
 export async function getCaseById(id: string): Promise<FrontendCase> {
   const res = await fetch(`${API_BASE_URL}/cases/${id}`);
-  return handleJsonResponse(res);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP error ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  return {
+    id: data.id,
+    status: data.status,
+    createdAt: data.created_at ?? null,
+    updatedAt: data.updated_at ?? null,
+    company: data.company ?? null,
+    worker: data.worker ?? null,
+    documents: data.documents ?? data.case_documents ?? null,
+    analysis: data.analysis ?? data.case_analysis ?? null,
+  };
 }
 
 // 3. uploadPPP

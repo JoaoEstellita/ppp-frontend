@@ -21,9 +21,11 @@ interface PageProps {
   params: { id: string };
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("pt-BR", {
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -318,8 +320,8 @@ export default function CaseDetailPage({ params }: PageProps) {
             </div>
             <div>
               <p className="text-sm text-gray-600">Data de Criação</p>
-              <p className="text-base font-medium text-gray-900">
-                {formatDate(caseData.createdAt || "")}
+                <p className="text-base font-medium text-gray-900">
+                {formatDate(caseData.createdAt)}
               </p>
             </div>
             <div className="md:col-span-2">
