@@ -60,16 +60,12 @@ export default function NewCasePage() {
     try {
       setLoading(true);
 
-      // Criar o caso com o formato esperado pelo backend (nested objects)
+      // Criar o caso com o formato esperado pelo backend (flat)
       const newCase = await createCase({
-        company: {
-          name: formData.companyName.trim(),
-          cnpj: formData.companyCNPJ.trim(),
-        },
-        worker: {
-          name: formData.workerName.trim(),
-          cpf: formData.workerCPF.trim(),
-        },
+        workerName: formData.workerName.trim(),
+        workerCPF: formData.workerCPF.trim(),
+        companyName: formData.companyName.trim(),
+        companyCNPJ: formData.companyCNPJ.trim(),
       });
 
       // Se houver arquivo PPP, fazer upload

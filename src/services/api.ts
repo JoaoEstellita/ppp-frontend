@@ -122,14 +122,10 @@ export async function getCases(): Promise<FrontendCase[]> {
 
 // 1b. createCase
 export async function createCase(payload: {
-  company: {
-    name: string;
-    cnpj: string;
-  };
-  worker: {
-    name: string;
-    cpf: string;
-  };
+  workerName: string;
+  workerCPF: string;
+  companyName: string;
+  companyCNPJ: string;
 }): Promise<FrontendCase> {
   const res = await fetch(`${API_BASE_URL}/cases`, {
     method: "POST",
