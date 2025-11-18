@@ -60,12 +60,16 @@ export default function NewCasePage() {
     try {
       setLoading(true);
 
-      // Criar o caso
+      // Criar o caso com o formato esperado pelo backend (nested objects)
       const newCase = await createCase({
-        workerName: formData.workerName.trim(),
-        workerCPF: formData.workerCPF.trim(),
-        companyName: formData.companyName.trim(),
-        companyCNPJ: formData.companyCNPJ.trim(),
+        company: {
+          name: formData.companyName.trim(),
+          cnpj: formData.companyCNPJ.trim(),
+        },
+        worker: {
+          name: formData.workerName.trim(),
+          cpf: formData.workerCPF.trim(),
+        },
       });
 
       // Se houver arquivo PPP, fazer upload
@@ -76,6 +80,7 @@ export default function NewCasePage() {
       // Redirecionar para a lista de casos
       router.push("/cases");
     } catch (err) {
+      console.error(err);
       setError("Não foi possível criar o caso. Tente novamente.");
     } finally {
       setLoading(false);
