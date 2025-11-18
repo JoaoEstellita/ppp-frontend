@@ -51,7 +51,7 @@ export interface FrontendCase {
   company?: FrontendCompany | null;
   worker?: FrontendWorker | null;
   documents?: FrontendDocument[];
-  analysis?: any;
+  analysis?: AnalysisResult | null;
 }
 
 // Tipo compatível com a estrutura antiga (para retrocompatibilidade com mock data)
@@ -66,22 +66,31 @@ export type Case = {
   pppFileName?: string;
 };
 
-export type BlockAnalysis = {
-  status: string;
-  erros: string[];
-};
+// Tipos para análise do motor de regras
+export type BlockStatus = 'APPROVED' | 'PENDING' | 'REPROVED' | 'NOT_EVALUATED';
 
-export type AnalysisResult = {
-  id: string;
-  blocks: {
-    bloco_5_1: BlockAnalysis;
-    bloco_5_2: BlockAnalysis;
-    bloco_5_3: BlockAnalysis;
-    bloco_5_4: BlockAnalysis;
-    bloco_5_5: BlockAnalysis;
-  };
-  conclusion: 1 | 2 | 3;
-};
+export type FinalClassification =
+  | 'ATENDE_INTEGRALMENTE'
+  | 'POSSUI_INCONSISTENCIAS_SANAVEIS'
+  | 'NAO_POSSUI_VALIDADE_TECNICA';
+
+export interface BlockFinding {
+  code: string;        // ex: 'CNPJ_INVALIDO', 'PROFISSIOGRAFIA_GENERICA_INVALIDA_PPP'
+  level: 'INFO' | 'WARNING' | 'CRITICAL';
+  message: string;     // texto em português pronto pra mostrar na UI
+}
+
+export interface BlockAnalysis {
+  id: '5.1' | '5.2' | '5.3' | '5.4' | '5.5';
+  title: string;       // ex: 'Dados Administrativos (Itens 1 a 12)'
+  status: BlockStatus;
+  findings: BlockFinding[];
+}
+
+export interface AnalysisResult {
+  blocks: BlockAnalysis[];
+  finalClassification: FinalClassification;
+}
 
 // Helper para checar resposta
 async function handleJsonResponse(response: Response) {

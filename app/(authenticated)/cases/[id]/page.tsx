@@ -12,6 +12,8 @@ import {
   downloadReport,
   FrontendCase,
   AnalysisResult,
+  BlockStatus,
+  FinalClassification,
 } from "@/src/services/api";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -49,24 +51,57 @@ function getStatusBadgeVariant(
   }
 }
 
-const analysisBlocksConfig = [
-  { key: "bloco_5_1" as const, title: "Bloco 5.1 – Dados Administrativos" },
-  { key: "bloco_5_2" as const, title: "Bloco 5.2 – Lotação e Atribuição" },
-  { key: "bloco_5_3" as const, title: "Bloco 5.3 – Profissiografia" },
-  { key: "bloco_5_4" as const, title: "Bloco 5.4 – Registros Ambientais" },
-  { key: "bloco_5_5" as const, title: "Bloco 5.5 – Responsável Técnico" },
-];
-
-function getConclusionLabel(conclusion: number | undefined): string {
-  switch (conclusion) {
-    case 1:
-      return "1 – Atende integralmente aos requisitos formais avaliados.";
-    case 2:
-      return "2 – Possui pendências ou inconsistências sanáveis.";
-    case 3:
-      return "3 – Não possui validade técnica nas condições atuais.";
+function formatFinalClassification(value: FinalClassification | undefined): string {
+  switch (value) {
+    case 'ATENDE_INTEGRALMENTE':
+      return 'ATENDE integralmente às exigências técnicas';
+    case 'POSSUI_INCONSISTENCIAS_SANAVEIS':
+      return 'Possui inconsistências sanáveis';
+    case 'NAO_POSSUI_VALIDADE_TECNICA':
+      return 'Não possui validade técnica';
     default:
-      return "Conclusão ainda não disponível.";
+      return 'Não avaliado';
+  }
+}
+
+function formatBlockStatus(value: BlockStatus | undefined): string {
+  switch (value) {
+    case 'APPROVED':
+      return 'APROVADO';
+    case 'PENDING':
+      return 'COM PENDÊNCIAS';
+    case 'REPROVED':
+      return 'REPROVADO';
+    case 'NOT_EVALUATED':
+    default:
+      return 'NÃO AVALIADO';
+  }
+}
+
+function getBlockStatusVariant(value: BlockStatus | undefined): "success" | "warning" | "danger" | "info" | "default" {
+  switch (value) {
+    case 'APPROVED':
+      return 'success';       // verde
+    case 'PENDING':
+      return 'warning';       // amarelo
+    case 'REPROVED':
+      return 'danger';        // vermelho
+    case 'NOT_EVALUATED':
+    default:
+      return 'info';          // azul/cinza neutro
+  }
+}
+
+function getFinalClassificationVariant(value: FinalClassification | undefined): "success" | "warning" | "danger" | "info" | "default" {
+  switch (value) {
+    case 'ATENDE_INTEGRALMENTE':
+      return 'success';
+    case 'POSSUI_INCONSISTENCIAS_SANAVEIS':
+      return 'warning';
+    case 'NAO_POSSUI_VALIDADE_TECNICA':
+      return 'danger';
+    default:
+      return 'info';
   }
 }
 
@@ -358,55 +393,51 @@ export default function CaseDetailPage({ params }: PageProps) {
           </div>
         </Card>
 
-        {analysis && (
+        {!analysis ? (
           <Card title="Análise do PPP">
-            <div className="mb-4">
-              <p className="text-sm text-gray-600">Conclusão geral do parecer</p>
-              <p className="text-base font-semibold text-gray-900">
-                {getConclusionLabel(analysis.conclusion as any)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Versão inicial focada na validação cadastral (bloco 5.1). Os demais blocos serão detalhados em próximas versões.
-              </p>
+            <p className="text-sm text-gray-500">
+              Nenhuma análise gerada ainda. Clique em &apos;Gerar análise (motor de regras)&apos; para iniciar.
+            </p>
+          </Card>
+        ) : (
+          <Card title="Análise do PPP">
+            {/* Conclusão técnica */}
+            <div className="mb-6 pb-4 border-b border-gray-200">
+              <p className="text-sm text-gray-600 mb-2">Conclusão técnica</p>
+              <div className="flex items-center gap-3">
+                <Badge variant={getFinalClassificationVariant(analysis.finalClassification)}>
+                  {formatFinalClassification(analysis.finalClassification)}
+                </Badge>
+              </div>
             </div>
-            <div className="space-y-4">
-              {analysisBlocksConfig.map((blockConfig) => {
-                const blockData = analysis.blocks[blockConfig.key];
-                const rawStatus = blockData?.status;
-                const isNaoAvaliado = !blockData || rawStatus === "NAO_AVALIADO";
 
-                const statusLabel = isNaoAvaliado
-                  ? "Não avaliado"
-                  : rawStatus === "APROVADO"
-                  ? "Aprovado"
-                  : rawStatus === "INCOMPLETO"
-                  ? "Incompleto"
-                  : rawStatus === "REPROVADO"
-                  ? "Reprovado"
-                  : String(rawStatus || "");
-
-                return (
+            {/* Blocos de análise */}
+            {analysis.blocks && analysis.blocks.length > 0 ? (
+              <div className="space-y-4">
+                {analysis.blocks.map((block) => (
                   <div
-                    key={blockConfig.key}
+                    key={block.id}
                     className="border border-gray-200 rounded-lg p-4"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <h4 className="text-base font-semibold text-gray-900">
-                        {blockConfig.title}
+                        {block.title}
                       </h4>
-                      <Badge variant={getStatusBadgeVariant(rawStatus || "")}>
-                        {statusLabel}
+                      <Badge variant={getBlockStatusVariant(block.status)}>
+                        {formatBlockStatus(block.status)}
                       </Badge>
                     </div>
 
-                    {isNaoAvaliado ? (
+                    {block.status === 'NOT_EVALUATED' ? (
                       <p className="text-sm text-gray-500">
                         Bloco ainda não avaliado nesta versão (sem regras automatizadas).
                       </p>
-                    ) : blockData?.erros && blockData.erros.length > 0 ? (
+                    ) : block.findings && block.findings.length > 0 ? (
                       <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                        {blockData.erros.map((erro, index) => (
-                          <li key={index}>{erro}</li>
+                        {block.findings.map((finding) => (
+                          <li key={finding.code}>
+                            {finding.message}
+                          </li>
                         ))}
                       </ul>
                     ) : (
@@ -415,9 +446,13 @@ export default function CaseDetailPage({ params }: PageProps) {
                       </p>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                PPP ainda não foi avaliado pelo motor de regras.
+              </p>
+            )}
           </Card>
         )}
 

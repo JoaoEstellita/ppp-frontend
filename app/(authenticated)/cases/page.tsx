@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getCases, FrontendCase } from "@/src/services/api";
+import { getCases, FrontendCase, FinalClassification } from "@/src/services/api";
 import { CaseStatus } from "@/lib/types";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
@@ -19,6 +19,32 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
       return "danger";
     default:
       return "default";
+  }
+}
+
+function formatFinalClassification(value: FinalClassification | undefined): string {
+  switch (value) {
+    case 'ATENDE_INTEGRALMENTE':
+      return 'ATENDE';
+    case 'POSSUI_INCONSISTENCIAS_SANAVEIS':
+      return 'COM INCONSISTÊNCIAS';
+    case 'NAO_POSSUI_VALIDADE_TECNICA':
+      return 'NÃO VÁLIDO';
+    default:
+      return 'Não avaliado';
+  }
+}
+
+function getFinalClassificationVariant(value: FinalClassification | undefined): "success" | "warning" | "danger" | "info" | "default" {
+  switch (value) {
+    case 'ATENDE_INTEGRALMENTE':
+      return 'success';
+    case 'POSSUI_INCONSISTENCIAS_SANAVEIS':
+      return 'warning';
+    case 'NAO_POSSUI_VALIDADE_TECNICA':
+      return 'danger';
+    default:
+      return 'info';
   }
 }
 
@@ -75,7 +101,7 @@ export default function CasesPage() {
       {!loading && !error && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <Table
-            headers={["ID", "Trabalhador", "Empresa", "Status", "Data de criação"]}
+            headers={["ID", "Trabalhador", "Empresa", "Status", "Conclusão", "Data de criação"]}
           >
             {cases.map((caseItem) => (
               <tr key={caseItem.id} className="hover:bg-gray-50">
@@ -96,6 +122,11 @@ export default function CasesPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <Badge variant={getStatusBadgeVariant(caseItem.status as any)}>
                     {caseItem.status}
+                  </Badge>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <Badge variant={getFinalClassificationVariant(caseItem.analysis?.finalClassification)}>
+                    {formatFinalClassification(caseItem.analysis?.finalClassification)}
                   </Badge>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
