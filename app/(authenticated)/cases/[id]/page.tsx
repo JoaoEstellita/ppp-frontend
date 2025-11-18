@@ -50,12 +50,25 @@ function getStatusBadgeVariant(
 }
 
 const analysisBlocksConfig = [
-  { key: "bloco_5_1" as const, title: "Bloco 5.1 - Dados do Trabalhador" },
-  { key: "bloco_5_2" as const, title: "Bloco 5.2 - Dados da Empresa" },
-  { key: "bloco_5_3" as const, title: "Bloco 5.3 - Função/Atividade" },
-  { key: "bloco_5_4" as const, title: "Bloco 5.4 - Agentes de Risco" },
-  { key: "bloco_5_5" as const, title: "Bloco 5.5 - Exames Médicos" },
+  { key: "bloco_5_1" as const, title: "Bloco 5.1 – Dados Administrativos" },
+  { key: "bloco_5_2" as const, title: "Bloco 5.2 – Lotação e Atribuição" },
+  { key: "bloco_5_3" as const, title: "Bloco 5.3 – Profissiografia" },
+  { key: "bloco_5_4" as const, title: "Bloco 5.4 – Registros Ambientais" },
+  { key: "bloco_5_5" as const, title: "Bloco 5.5 – Responsável Técnico" },
 ];
+
+function getConclusionLabel(conclusion: number | undefined): string {
+  switch (conclusion) {
+    case 1:
+      return "1 – Atende integralmente aos requisitos formais avaliados.";
+    case 2:
+      return "2 – Possui pendências ou inconsistências sanáveis.";
+    case 3:
+      return "3 – Não possui validade técnica nas condições atuais.";
+    default:
+      return "Conclusão ainda não disponível.";
+  }
+}
 
 export default function CaseDetailPage({ params }: PageProps) {
   const router = useRouter();
@@ -347,9 +360,31 @@ export default function CaseDetailPage({ params }: PageProps) {
 
         {analysis && (
           <Card title="Análise do PPP">
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">Conclusão geral do parecer</p>
+              <p className="text-base font-semibold text-gray-900">
+                {getConclusionLabel(analysis.conclusion as any)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Versão inicial focada na validação cadastral (bloco 5.1). Os demais blocos serão detalhados em próximas versões.
+              </p>
+            </div>
             <div className="space-y-4">
               {analysisBlocksConfig.map((blockConfig) => {
                 const blockData = analysis.blocks[blockConfig.key];
+                const rawStatus = blockData?.status;
+                const isNaoAvaliado = !blockData || rawStatus === "NAO_AVALIADO";
+
+                const statusLabel = isNaoAvaliado
+                  ? "Não avaliado"
+                  : rawStatus === "APROVADO"
+                  ? "Aprovado"
+                  : rawStatus === "INCOMPLETO"
+                  ? "Incompleto"
+                  : rawStatus === "REPROVADO"
+                  ? "Reprovado"
+                  : String(rawStatus || "");
+
                 return (
                   <div
                     key={blockConfig.key}
@@ -359,11 +394,16 @@ export default function CaseDetailPage({ params }: PageProps) {
                       <h4 className="text-base font-semibold text-gray-900">
                         {blockConfig.title}
                       </h4>
-                      <Badge variant={getStatusBadgeVariant(blockData.status)}>
-                        {blockData.status}
+                      <Badge variant={getStatusBadgeVariant(rawStatus || "")}>
+                        {statusLabel}
                       </Badge>
                     </div>
-                    {blockData.erros && blockData.erros.length > 0 ? (
+
+                    {isNaoAvaliado ? (
+                      <p className="text-sm text-gray-500">
+                        Bloco ainda não avaliado nesta versão (sem regras automatizadas).
+                      </p>
+                    ) : blockData?.erros && blockData.erros.length > 0 ? (
                       <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                         {blockData.erros.map((erro, index) => (
                           <li key={index}>{erro}</li>
