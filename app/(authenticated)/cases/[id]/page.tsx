@@ -7,7 +7,7 @@ import {
   getPPPUrl,
   getReportUrl,
   uploadPPP,
-  generateAnalysis,
+  generateCaseAnalysis,
   downloadPPP,
   downloadReport,
   FrontendCase,
@@ -188,8 +188,9 @@ export default function CaseDetailPage({ params }: PageProps) {
     if (!caseData) return;
     try {
       setIsGeneratingAnalysis(true);
-      const result = await generateAnalysis(caseData.id);
+      const result = await generateCaseAnalysis(caseData.id);
       setAnalysis(result);
+      router.refresh();
       alert("Análise gerada com sucesso.");
     } catch (err) {
       console.error(err);

@@ -166,11 +166,16 @@ export async function uploadPPP(caseId: string, file: File): Promise<FrontendCas
   return handleJsonResponse(res);
 }
 
-// 4. generateAnalysis
-export async function generateAnalysis(caseId: string): Promise<AnalysisResult> {
-  const res = await fetch(`${API_BASE_URL}/cases/${caseId}/analysis`);
+// 4. generateAnalysis -> agora retorna o payload completo criado pelo backend
+export async function generateCaseAnalysis(caseId: string): Promise<AnalysisResult> {
+  const res = await fetch(`${API_BASE_URL}/cases/${caseId}/analysis`, {
+    method: "POST",
+  });
   return handleJsonResponse(res);
 }
+
+// Alias para retrocompatibilidade
+export const generateAnalysis = generateCaseAnalysis;
 
 // 5. downloadPPP -> retorna Blob
 export async function downloadPPP(caseId: string): Promise<Blob> {
