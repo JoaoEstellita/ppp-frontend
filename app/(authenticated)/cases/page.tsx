@@ -1,13 +1,20 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getCases, FrontendCase, FinalClassification } from "@/src/services/api";
+import { getCases, FrontendCase, FinalClassification, ApiError } from "@/src/services/api";
 import { CaseStatus } from "@/lib/types";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
+
+const STATUS_LABELS: Record<CaseStatus, string> = {
+  EM_ANALISE: "Em analise",
+  COMPLETO: "Completo",
+  INCOMPLETO: "Incompleto",
+  ERRO: "Erro",
+};
 
 function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "danger" | "info" | "default" {
   switch (status) {
@@ -17,34 +24,40 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
       return "info";
     case "INCOMPLETO":
       return "danger";
+    case "ERRO":
+      return "danger";
     default:
       return "default";
   }
 }
 
+function formatStatusLabel(status: CaseStatus): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
 function formatFinalClassification(value: FinalClassification | undefined): string {
   switch (value) {
-    case 'ATENDE_INTEGRALMENTE':
-      return 'ATENDE';
-    case 'POSSUI_INCONSISTENCIAS_SANAVEIS':
-      return 'COM INCONSISTÊNCIAS';
-    case 'NAO_POSSUI_VALIDADE_TECNICA':
-      return 'NÃO VÁLIDO';
+    case "ATENDE_INTEGRALMENTE":
+      return "Atende";
+    case "POSSUI_INCONSISTENCIAS_SANAVEIS":
+      return "Com inconsistencias";
+    case "NAO_POSSUI_VALIDADE_TECNICA":
+      return "Nao valido";
     default:
-      return 'Não avaliado';
+      return "Nao avaliado";
   }
 }
 
 function getFinalClassificationVariant(value: FinalClassification | undefined): "success" | "warning" | "danger" | "info" | "default" {
   switch (value) {
-    case 'ATENDE_INTEGRALMENTE':
-      return 'success';
-    case 'POSSUI_INCONSISTENCIAS_SANAVEIS':
-      return 'warning';
-    case 'NAO_POSSUI_VALIDADE_TECNICA':
-      return 'danger';
+    case "ATENDE_INTEGRALMENTE":
+      return "success";
+    case "POSSUI_INCONSISTENCIAS_SANAVEIS":
+      return "warning";
+    case "NAO_POSSUI_VALIDADE_TECNICA":
+      return "danger";
     default:
-      return 'info';
+      return "info";
   }
 }
 
@@ -70,7 +83,11 @@ export default function CasesPage() {
         setCases(data);
       } catch (err) {
         console.error("Erro ao buscar casos:", err);
-        setError("Não foi possível carregar os casos.");
+        if (err instanceof ApiError) {
+          setError(err.message || "Nao foi possivel carregar os casos.");
+        } else {
+          setError("Nao foi possivel carregar os casos.");
+        }
       } finally {
         setLoading(false);
       }
@@ -87,9 +104,7 @@ export default function CasesPage() {
       </div>
 
       {loading && (
-        <div className="text-center py-8 text-gray-600">
-          Carregando casos...
-        </div>
+        <div className="text-center py-8 text-gray-600">Carregando casos...</div>
       )}
 
       {error && (
@@ -101,7 +116,7 @@ export default function CasesPage() {
       {!loading && !error && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <Table
-            headers={["ID", "Trabalhador", "Empresa", "Status", "Conclusão", "Data de criação"]}
+            headers={["ID", "Trabalhador", "Empresa", "Status", "Conclusao", "Data de criacao"]}
           >
             {cases.map((caseItem) => (
               <tr key={caseItem.id} className="hover:bg-gray-50">
@@ -120,8 +135,8 @@ export default function CasesPage() {
                   {caseItem.company?.name || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <Badge variant={getStatusBadgeVariant(caseItem.status as any)}>
-                    {caseItem.status}
+                  <Badge variant={getStatusBadgeVariant(caseItem.status as CaseStatus)}>
+                    {formatStatusLabel(caseItem.status as CaseStatus)}
                   </Badge>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -140,4 +155,3 @@ export default function CasesPage() {
     </div>
   );
 }
-
