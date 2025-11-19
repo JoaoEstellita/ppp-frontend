@@ -23,10 +23,11 @@ const CASE_STATUS_LABELS: Record<string, string> = {
   COMPLETO: "Completo",
   INCOMPLETO: "Incompleto",
   ERRO: "Erro",
-  received: "Recebido",
-  processing: "Em processamento",
-  analyzed: "Completo",
-  error: "Erro",
+  new: "Aguardando envio do PPP",
+  received: "Aguardando envio do PPP",
+  processing: "Documento recebido - em analise automatica",
+  analyzed: "Analise concluida",
+  error: "Erro na analise",
 };
 
 function getStatusBadgeVariant(value: CaseStatus | string):
@@ -43,6 +44,7 @@ function getStatusBadgeVariant(value: CaseStatus | string):
     case "processing":
       return "info";
     case "INCOMPLETO":
+    case "new":
     case "received":
       return "warning";
     case "ERRO":
@@ -174,7 +176,9 @@ export default function CaseDetailPage({ params }: PageProps) {
   }
 
   const { case: caseRecord, analysis } = caseDetail;
-  const rulesResult = analysis?.rules_result;
+  const rulesResult = analysis?.rules_result ?? analysis;
+  const statusValue = caseRecord.statusRaw || caseRecord.status;
+  const statusLabel = formatCaseStatus(statusValue);
 
   return (
     <div>
@@ -229,12 +233,18 @@ export default function CaseDetailPage({ params }: PageProps) {
         </Card>
 
         <Card title="Informacoes do Caso">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Protocolo</p>
+              <p className="text-base font-medium text-gray-900">
+                #{caseRecord.id}
+              </p>
+            </div>
             <div>
               <p className="text-sm text-gray-600">Status</p>
               <div className="mt-1">
-                <Badge variant={getStatusBadgeVariant(caseRecord.status)}>
-                  {formatCaseStatus(caseRecord.status)}
+                <Badge variant={getStatusBadgeVariant(statusValue || caseRecord.status)}>
+                  {statusLabel}
                 </Badge>
               </div>
             </div>

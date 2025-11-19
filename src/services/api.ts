@@ -25,11 +25,12 @@ export const API_BASE_URL: string =
 
 // Tipos basicos usados pelo frontend
 
-export type BackendCaseStatus = "received" | "processing" | "analyzed" | "error";
+export type BackendCaseStatus = "new" | "received" | "processing" | "analyzed" | "error";
 
 export type CaseStatus = "EM_ANALISE" | "COMPLETO" | "INCOMPLETO" | "ERRO";
 
 const BACKEND_TO_FRONTEND_STATUS: Record<BackendCaseStatus, CaseStatus> = {
+  new: "INCOMPLETO",
   received: "INCOMPLETO",
   processing: "EM_ANALISE",
   analyzed: "COMPLETO",
@@ -131,6 +132,7 @@ export interface CaseAnalysis {
   created_at?: string | null;
   final_classification?: FinalClassification | string;
   emailsSentTo?: string[];
+  raw_ai_result?: any;
   extra_metadata?: any;
   rules_result?: AnalysisResult | null;
 }
@@ -144,6 +146,7 @@ export interface CaseDetail {
 }
 
 const BACKEND_STATUS_VALUES: BackendCaseStatus[] = [
+  "new",
   "received",
   "processing",
   "analyzed",
@@ -300,6 +303,12 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     return null;
   }
 
+  const rawAiResult =
+    value.raw_ai_result ??
+    value.rawAiResult ??
+    value.raw ??
+    null;
+
   return {
     id: String(idSource),
     case_id: String(value.case_id ?? value.caseId ?? value.id ?? idSource),
@@ -314,6 +323,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
         value.recipients ??
         value.recipients_list
     ),
+    raw_ai_result: rawAiResult,
     extra_metadata: value.extra_metadata ?? value.metadata ?? null,
     rules_result: rulesResult,
   };
