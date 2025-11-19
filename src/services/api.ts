@@ -284,7 +284,7 @@ function ensureStringArray(value: any): string[] | undefined {
 
 function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
   if (!raw) return null;
-  const value = parseMaybeJson(raw);
+  const value = parseMaybeJson<Record<string, any>>(raw);
   if (!value || typeof value !== "object") return null;
 
   const rulesPayload =
