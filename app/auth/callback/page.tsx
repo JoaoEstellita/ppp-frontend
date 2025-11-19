@@ -2,19 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { supabaseClient } from "@/lib/supabaseClient";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
     const handleCallback = async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        router.replace("/login");
-        return;
-      }
-      await supabase.auth.getSession();
+      await supabaseClient.auth.getSession();
       router.replace("/cases");
     };
 

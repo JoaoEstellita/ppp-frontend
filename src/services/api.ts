@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { supabaseClient } from "@/lib/supabaseClient";
 
 // Central API client para o frontend
 // Este arquivo fornece um conjunto de funcoes para consumir o backend PPP.
@@ -22,8 +22,6 @@ const craEnv =
 // Fallback padrao agora e o backend em producao, NAO mais localhost
 export const API_BASE_URL: string =
   nextEnv || viteEnv || craEnv || "https://ppp-backend-sjic.onrender.com";
-
-const supabase = getSupabaseClient();
 
 // Tipos basicos usados pelo frontend
 
@@ -442,18 +440,14 @@ async function handleJsonResponse(response: Response) {
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
-  let sessionToken: string | undefined;
-  if (supabase) {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    sessionToken = session?.access_token;
-  }
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
 
   const headers = new Headers(options.headers || {});
 
-  if (sessionToken) {
-    headers.set("Authorization", `Bearer ${sessionToken}`);
+  if (session?.access_token) {
+    headers.set("Authorization", `Bearer ${session.access_token}`);
   }
 
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
