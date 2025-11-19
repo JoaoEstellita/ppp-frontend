@@ -1,7 +1,9 @@
-// Central API client para o frontend
-// Este arquivo fornece um conjunto de funções para consumir o backend PPP.
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
-// Leitura da variável de ambiente (compatível com Vite, CRA e Next.js)
+// Central API client para o frontend
+// Este arquivo fornece um conjunto de funcoes para consumir o backend PPP.
+
+// Leitura da variavel de ambiente (compativel com Vite, CRA e Next.js)
 const viteEnv =
   typeof import.meta !== "undefined" && (import.meta as any).env
     ? (import.meta as any).env.VITE_API_URL
@@ -17,11 +19,13 @@ const craEnv =
     ? process.env.REACT_APP_API_URL
     : undefined;
 
-// Fallback padrão agora é o backend em produção, NÃO mais localhost
+// Fallback padrao agora e o backend em producao, NAO mais localhost
 export const API_BASE_URL: string =
   nextEnv || viteEnv || craEnv || "https://ppp-backend-sjic.onrender.com";
 
-// Tipos básicos usados pelo frontend
+const supabase = getSupabaseClient();
+
+// Tipos basicos usados pelo frontend
 
 export type BackendCaseStatus = "received" | "processing" | "analyzed" | "error";
 
@@ -85,7 +89,7 @@ export interface FrontendCase {
   analysis?: AnalysisResult | null;
 }
 
-// Tipo compatível com a estrutura antiga (para retrocompatibilidade com mock data)
+// Tipo compativel com a estrutura antiga (para retrocompatibilidade com mock data)
 export type Case = {
   id: string;
   workerName: string;
@@ -97,7 +101,7 @@ export type Case = {
   pppFileName?: string;
 };
 
-// Tipos para análise do motor de regras
+// Tipos para analise do motor de regras
 export type BlockStatus = 'APPROVED' | 'PENDING' | 'REPROVED' | 'NOT_EVALUATED';
 
 export type FinalClassification =
@@ -108,7 +112,7 @@ export type FinalClassification =
 export interface BlockFinding {
   code: string;        // ex: 'CNPJ_INVALIDO', 'PROFISSIOGRAFIA_GENERICA_INVALIDA_PPP'
   level: 'INFO' | 'WARNING' | 'CRITICAL';
-  message: string;     // texto em português pronto pra mostrar na UI
+  message: string;     // texto em portugues pronto pra mostrar na UI
 }
 
 export interface BlockAnalysis {
@@ -121,6 +125,24 @@ export interface BlockAnalysis {
 export interface AnalysisResult {
   blocks: BlockAnalysis[];
   finalClassification?: FinalClassification;
+}
+
+export interface CaseAnalysis {
+  id: string;
+  case_id: string;
+  created_at?: string | null;
+  final_classification?: FinalClassification | string;
+  emailsSentTo?: string[];
+  extra_metadata?: any;
+  rules_result?: AnalysisResult | null;
+}
+
+export interface CaseDetail {
+  case: FrontendCase;
+  worker?: FrontendWorker | null;
+  company?: FrontendCompany | null;
+  documents?: FrontendDocument[];
+  analysis?: CaseAnalysis | null;
 }
 
 const BACKEND_STATUS_VALUES: BackendCaseStatus[] = [
@@ -246,9 +268,62 @@ function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
   };
 }
 
+function ensureStringArray(value: any): string[] | undefined {
+  if (!value) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return undefined;
+}
+
+function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
+  if (!raw) return null;
+  const value = parseMaybeJson(raw);
+  if (!value || typeof value !== "object") return null;
+
+  const rulesPayload =
+    value.rules_result ??
+    value.rulesResult ??
+    value.analysis ??
+    value.rules ??
+    null;
+
+  const rulesResult = normalizeAnalysisPayload(rulesPayload);
+
+  const idSource = value.id ?? value.case_analysis_id ?? value.case_id;
+
+  if (!idSource) {
+    return null;
+  }
+
+  return {
+    id: String(idSource),
+    case_id: String(value.case_id ?? value.caseId ?? value.id ?? idSource),
+    created_at: value.created_at ?? value.createdAt ?? null,
+    final_classification:
+      value.final_classification ??
+      value.finalClassification ??
+      rulesResult?.finalClassification,
+    emailsSentTo: ensureStringArray(
+      value.emailsSentTo ??
+        value.emails_sent_to ??
+        value.recipients ??
+        value.recipients_list
+    ),
+    extra_metadata: value.extra_metadata ?? value.metadata ?? null,
+    rules_result: rulesResult,
+  };
+}
+
 function normalizeCaseResponse(payload: any): FrontendCase {
   if (!payload || typeof payload !== "object") {
-    throw new Error("Resposta do backend inválida ao carregar o caso.");
+    throw new Error("Resposta do backend invalida ao carregar o caso.");
   }
 
   const idSource = payload.id ?? payload.case_id ?? payload.caseId;
@@ -284,6 +359,39 @@ function normalizeCaseResponse(payload: any): FrontendCase {
     worker: payload.worker ?? payload.workers ?? workerFromFlat ?? null,
     documents: normalizeDocuments(payload.documents ?? payload.case_documents ?? []),
     analysis: normalizeAnalysisPayload(payload.analysis ?? payload.case_analysis ?? null),
+  };
+}
+
+function normalizeCaseDetail(payload: any): CaseDetail {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Resposta do backend invalida para detalhes do caso.");
+  }
+
+  const casePayload = payload.case ?? payload;
+  const normalizedCase = normalizeCaseResponse(casePayload);
+
+  const analysis = normalizeCaseAnalysis(
+    payload.analysis ??
+      payload.case_analysis ??
+      casePayload.analysis ??
+      casePayload.case_analysis ??
+      null
+  );
+
+  return {
+    case: normalizedCase,
+    worker:
+      payload.worker ??
+      casePayload.worker ??
+      normalizedCase.worker ??
+      null,
+    company:
+      payload.company ??
+      casePayload.company ??
+      normalizedCase.company ??
+      null,
+    documents: normalizedCase.documents,
+    analysis,
   };
 }
 
@@ -333,16 +441,35 @@ async function handleJsonResponse(response: Response) {
   return response.json();
 }
 
-async function handleBlobResponse(response: Response) {
-  if (!response.ok) {
-    await raiseApiError(response);
+async function apiFetch(path: string, options: RequestInit = {}) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers = new Headers(options.headers || {});
+
+  if (session?.access_token) {
+    headers.set("Authorization", `Bearer ${session.access_token}`);
   }
-  return response.blob();
+
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
 }
 
 // 1. getCases
 export async function getCases(): Promise<FrontendCase[]> {
-  const res = await fetch(`${API_BASE_URL}/cases`);
+  const res = await apiFetch("/cases");
 
   const raw = await handleJsonResponse(res);
 
@@ -362,9 +489,8 @@ export async function createCase(payload: {
   companyName: string;
   companyCNPJ: string;
 }): Promise<FrontendCase> {
-  const res = await fetch(`${API_BASE_URL}/cases`, {
+  const res = await apiFetch("/cases", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const data = await handleJsonResponse(res);
@@ -374,63 +500,50 @@ export async function createCase(payload: {
   return normalizeCaseResponse(data);
 }
 
-// 2. getCaseById
-export async function getCaseById(id: string): Promise<FrontendCase> {
-  const res = await fetch(`${API_BASE_URL}/cases/${id}`);
-
+// 2. getCaseDetail
+export async function getCaseDetail(id: string): Promise<CaseDetail> {
+  const res = await apiFetch(`/cases/${id}`);
   const data = await handleJsonResponse(res);
-
-  return normalizeCaseResponse(data);
+  return normalizeCaseDetail(data);
 }
 
-// 3. uploadPPP
-export async function uploadPPP(caseId: string, file: File): Promise<void> {
+export async function uploadPppAndGenerateAnalysis(
+  caseId: string,
+  file: File
+): Promise<CaseAnalysis> {
   const formData = new FormData();
-  formData.append("ppp", file);
+  formData.append("pppFile", file);
 
-  const res = await fetch(`${API_BASE_URL}/cases/${caseId}/ppp`, {
+  const res = await apiFetch(`/cases/${caseId}/analysis`, {
     method: "POST",
     body: formData,
   });
 
-  await handleJsonResponse(res);
-}
-
-// 4. generateAnalysis -> agora retorna o payload completo criado pelo backend
-export async function generateCaseAnalysis(caseId: string): Promise<AnalysisResult> {
-  const res = await fetch(`${API_BASE_URL}/cases/${caseId}/analysis`, {
-    method: "POST",
-  });
-  const data = await handleJsonResponse(res);
-  const normalized = normalizeAnalysisPayload(
-    data?.analysis ?? data?.rules_result ?? data
-  );
-  if (!normalized) {
-    throw new Error("Resposta de anǭlise inválida do backend.");
+  if (!res.ok) {
+    let errorMessage = "Falha ao enviar PPP para analise";
+    try {
+      const errorJson = await res.json();
+      if (errorJson?.error) {
+        errorMessage = errorJson.error;
+      } else if (errorJson?.message) {
+        errorMessage = errorJson.message;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(errorMessage);
   }
-  return normalized;
-}
 
-// Alias para retrocompatibilidade
-export const generateAnalysis = generateCaseAnalysis;
-
-// 5. downloadPPP -> retorna Blob
-export async function downloadPPP(caseId: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE_URL}/cases/${caseId}/ppp`);
-  return handleBlobResponse(res);
-}
-
-// 6. downloadReport -> retorna Blob
-export async function downloadReport(caseId: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE_URL}/cases/${caseId}/report`);
-  return handleBlobResponse(res);
-}
-
-// Helpers que retornam URLs diretas (úteis para abrir em nova aba)
-export function getPPPUrl(caseId: string) {
-  return `${API_BASE_URL}/cases/${caseId}/ppp`;
-}
-
-export function getReportUrl(caseId: string) {
-  return `${API_BASE_URL}/cases/${caseId}/report`;
+  const data = await res.json();
+  return (
+    normalizeCaseAnalysis(data?.analysis ?? data) ?? {
+      id: String(data?.id ?? caseId),
+      case_id: caseId,
+      created_at: data?.created_at ?? null,
+      final_classification: data?.final_classification,
+      emailsSentTo: ensureStringArray(data?.emailsSentTo ?? data?.emails_sent_to),
+      extra_metadata: data?.extra_metadata ?? data?.metadata ?? null,
+      rules_result: normalizeAnalysisPayload(data?.rules_result ?? data),
+    }
+  );
 }
