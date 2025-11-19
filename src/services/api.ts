@@ -442,14 +442,18 @@ async function handleJsonResponse(response: Response) {
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  let sessionToken: string | undefined;
+  if (supabase) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    sessionToken = session?.access_token;
+  }
 
   const headers = new Headers(options.headers || {});
 
-  if (session?.access_token) {
-    headers.set("Authorization", `Bearer ${session.access_token}`);
+  if (sessionToken) {
+    headers.set("Authorization", `Bearer ${sessionToken}`);
   }
 
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {

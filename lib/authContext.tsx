@@ -28,6 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     let isMounted = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return;
@@ -49,6 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!supabase) {
+      throw new Error("Supabase nao configurado");
+    }
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -58,6 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signOut = useCallback(async () => {
+    if (!supabase) {
+      throw new Error("Supabase nao configurado");
+    }
     await supabase.auth.signOut();
   }, [supabase]);
 
