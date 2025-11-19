@@ -230,7 +230,7 @@ function normalizeDocuments(rawDocs: any): FrontendDocument[] {
 function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
   if (raw === undefined || raw === null) return null;
 
-  const value = parseMaybeJson(raw);
+  const value = parseMaybeJson<Record<string, any>>(raw);
 
   if (!value) return null;
 
