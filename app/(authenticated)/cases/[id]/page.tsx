@@ -8,6 +8,7 @@ import {
   CaseStatus,
   FinalClassification,
   BlockStatus,
+  AnalysisResult,
 } from "@/src/services/api";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -131,6 +132,15 @@ function getBlockStatusVariant(value: BlockStatus | undefined):
   }
 }
 
+function hasBlocks(value: unknown): value is AnalysisResult {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "blocks" in value &&
+      Array.isArray((value as AnalysisResult).blocks)
+  );
+}
+
 export default function CaseDetailPage({ params }: PageProps) {
   const { id } = params;
   const router = useRouter();
@@ -176,7 +186,11 @@ export default function CaseDetailPage({ params }: PageProps) {
   }
 
   const { case: caseRecord, analysis } = caseDetail;
-  const rulesResult = analysis?.rules_result ?? analysis;
+  const rulesResult = hasBlocks(analysis?.rules_result)
+    ? analysis?.rules_result
+    : hasBlocks(analysis)
+      ? (analysis as AnalysisResult)
+      : null;
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
 
