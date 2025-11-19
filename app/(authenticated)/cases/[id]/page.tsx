@@ -9,6 +9,7 @@ import {
   FinalClassification,
   BlockStatus,
   AnalysisResult,
+  WorkflowLog,
 } from "@/src/services/api";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -132,6 +133,29 @@ function getBlockStatusVariant(value: BlockStatus | undefined):
   }
 }
 
+function formatDateOnly(iso: string | null | undefined) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("pt-BR");
+}
+
+const WORKFLOW_STEP_LABELS: Record<string, string> = {
+  PPP_UPLOADED: "PPP recebido",
+  SENT_TO_N8N: "Enviado para analise automatica",
+  N8N_ANALYSIS_RECEIVED: "Analise automatica concluida",
+  ANALYSIS_SAVED: "Resultado salvo",
+  EMAIL_SENT: "Parecer enviado por e-mail",
+  N8N_ERROR: "Erro ao integrar com n8n",
+  ANALYSIS_PERSIST_FAILED: "Erro ao salvar analise",
+  ANALYSIS_FAILED: "Erro inesperado",
+};
+
+function formatWorkflowStep(step: string) {
+  if (!step) return "Atualizacao";
+  return WORKFLOW_STEP_LABELS[step] ?? step.replace(/_/g, " ").toLowerCase();
+}
+
 function hasBlocks(value: unknown): value is AnalysisResult {
   return Boolean(
     value &&
@@ -185,12 +209,13 @@ export default function CaseDetailPage({ params }: PageProps) {
     );
   }
 
-  const { case: caseRecord, analysis } = caseDetail;
+  const { case: caseRecord, analysis, workflowLogs: workflowLogsFromApi } = caseDetail;
   const rulesResult = hasBlocks(analysis?.rules_result)
     ? analysis?.rules_result
     : hasBlocks(analysis)
       ? (analysis as AnalysisResult)
       : null;
+  const workflowLogs = workflowLogsFromApi ?? [];
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
 
@@ -213,7 +238,7 @@ export default function CaseDetailPage({ params }: PageProps) {
         </Card>
 
         <Card title="Dados do Trabalhador">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
@@ -226,6 +251,14 @@ export default function CaseDetailPage({ params }: PageProps) {
                 {caseRecord.worker?.cpf || "-"}
               </p>
             </div>
+            {caseRecord.worker?.birthDate && (
+              <div>
+                <p className="text-sm text-gray-600">Data de nascimento</p>
+                <p className="text-base font-medium text-gray-900">
+                  {formatDateOnly(caseRecord.worker?.birthDate)}
+                </p>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -292,6 +325,9 @@ export default function CaseDetailPage({ params }: PageProps) {
                     Parecer enviado para: {analysis.emailsSentTo.join(", ")}
                   </p>
                 )}
+                {rulesResult?.summary && (
+                  <p className="text-sm text-gray-700">{rulesResult.summary}</p>
+                )}
               </div>
 
               {rulesResult && rulesResult.blocks && rulesResult.blocks.length > 0 ? (
@@ -324,6 +360,27 @@ export default function CaseDetailPage({ params }: PageProps) {
             </div>
           )}
         </Card>
+        {workflowLogs.length > 0 && (
+          <Card title="Historico do caso">
+            <ol className="space-y-3">
+              {workflowLogs.map((log) => (
+                <li key={log.id} className="flex flex-col md:flex-row md:items-start md:gap-4">
+                  <span className="text-xs text-gray-500 w-40">
+                    {formatDateTime(log.created_at)}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {formatWorkflowStep(log.step)}
+                    </p>
+                    {log.message && (
+                      <p className="text-sm text-gray-600">{log.message}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        )}
       </div>
     </div>
   );

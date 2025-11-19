@@ -2,7 +2,7 @@
 
 import { useState, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { uploadPppAndGenerateAnalysis } from "@/src/services/api";
+import { generateCaseAnalysis } from "@/src/services/api";
 import { Button } from "@/components/Button";
 
 interface Props {
@@ -24,10 +24,15 @@ export function CasePppUploadAndAnalysis({ caseId, onCompleted }: Props) {
     if (!file) return;
     try {
       setLoading(true);
-      await uploadPppAndGenerateAnalysis(caseId, file);
+      const result = await generateCaseAnalysis(caseId, file);
       await onCompleted?.();
       router.refresh();
-      alert("PPP enviado para analise. O parecer sera enviado por e-mail.");
+      const recipients = result.emailsSentTo;
+      if (recipients && recipients.length > 0) {
+        alert(`Analise automatica concluida. Parecer enviado para: ${recipients.join(", ")}`);
+      } else {
+        alert("PPP enviado para analise. O parecer sera enviado por e-mail.");
+      }
     } catch (err: any) {
       console.error(err);
       alert(err?.message ?? "Erro ao enviar PPP para analise.");

@@ -66,6 +66,7 @@ export type FrontendCompany = {
 export type FrontendWorker = {
   name: string;
   cpf?: string;
+  birthDate?: string;
 };
 
 export type FrontendDocument = {
@@ -74,6 +75,15 @@ export type FrontendDocument = {
   fileName?: string;
   url?: string;
 };
+
+export interface WorkflowLog {
+  id: string;
+  step: string;
+  status?: string;
+  message?: string | null;
+  metadata?: any;
+  created_at: string;
+}
 
 export interface FrontendCase {
   id: string;
@@ -124,6 +134,7 @@ export interface BlockAnalysis {
 export interface AnalysisResult {
   blocks: BlockAnalysis[];
   finalClassification?: FinalClassification;
+  summary?: string;
 }
 
 export interface CaseAnalysis {
@@ -143,6 +154,8 @@ export interface CaseDetail {
   company?: FrontendCompany | null;
   documents?: FrontendDocument[];
   analysis?: CaseAnalysis | null;
+  workflowLogs?: WorkflowLog[];
+  emailsSentTo?: string[];
 }
 
 const BACKEND_STATUS_VALUES: BackendCaseStatus[] = [
@@ -228,6 +241,30 @@ function normalizeDocuments(rawDocs: any): FrontendDocument[] {
     .filter((doc): doc is FrontendDocument => Boolean(doc));
 }
 
+function normalizeWorkflowLogs(raw: any): WorkflowLog[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .map((log) => {
+      if (!log) return null;
+      const idSource = log.id ?? log.log_id ?? log.workflow_log_id;
+      if (!idSource) return null;
+      const createdAt = log.created_at ?? log.createdAt ?? null;
+      if (!createdAt) return null;
+      return {
+        id: String(idSource),
+        step: String(log.step ?? "UNKNOWN"),
+        status: log.status ?? undefined,
+        message: log.message ?? null,
+        metadata: log.metadata ?? null,
+        created_at: createdAt,
+      } as WorkflowLog;
+    })
+    .filter((log): log is WorkflowLog => Boolean(log));
+}
+
 function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
   if (raw === undefined || raw === null) return null;
 
@@ -259,13 +296,16 @@ function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
       nestedRules?.finalClassification ??
       nestedAnalysis?.finalClassification) as FinalClassification | undefined;
 
-  if (!blocks.length && !finalClassification) {
+  const summary = value.summary ?? nestedRules?.summary ?? nestedAnalysis?.summary;
+
+  if (!blocks.length && !finalClassification && !summary) {
     return null;
   }
 
   return {
     blocks,
     finalClassification,
+    summary,
   };
 }
 
@@ -334,26 +374,50 @@ function normalizeCaseResponse(payload: any): FrontendCase {
     throw new Error("Resposta do backend invalida ao carregar o caso.");
   }
 
-  const idSource = payload.id ?? payload.case_id ?? payload.caseId;
+  const base = payload.case ?? payload;
+
+  const idSource = base.id ?? base.case_id ?? base.caseId;
   if (idSource === undefined || idSource === null) {
     throw new Error("Resposta do backend sem identificador do caso.");
   }
 
-  const { status, raw } = normalizeCaseStatus(payload.status);
+  const { status, raw } = normalizeCaseStatus(base.status);
 
   const companyFromFlat =
-    payload.company_name || payload.companyCNPJ
+    payload.company_name || payload.companyCNPJ || base.company_name || base.companyCNPJ
       ? {
-          name: payload.company_name ?? payload.companyName ?? "",
-          cnpj: payload.company_cnpj ?? payload.companyCNPJ,
+          name:
+            payload.company_name ??
+            payload.companyName ??
+            base.company_name ??
+            base.companyName ??
+            "",
+          cnpj:
+            payload.company_cnpj ??
+            payload.companyCNPJ ??
+            base.company_cnpj ??
+            base.companyCNPJ,
         }
       : null;
 
   const workerFromFlat =
-    payload.worker_name || payload.workerCPF
+    payload.worker_name ||
+    payload.workerCPF ||
+    base.worker_name ||
+    base.workerCPF
       ? {
-          name: payload.worker_name ?? payload.workerName ?? "",
-          cpf: payload.worker_cpf ?? payload.workerCPF,
+          name:
+            payload.worker_name ??
+            payload.workerName ??
+            base.worker_name ??
+            base.workerName ??
+            "",
+          cpf:
+            payload.worker_cpf ??
+            payload.workerCPF ??
+            base.worker_cpf ??
+            base.workerCPF,
+          birthDate: payload.worker_birth_date ?? base.worker_birth_date,
         }
       : null;
 
@@ -361,12 +425,30 @@ function normalizeCaseResponse(payload: any): FrontendCase {
     id: String(idSource),
     status,
     statusRaw: raw,
-    createdAt: payload.created_at ?? payload.createdAt ?? null,
-    updatedAt: payload.updated_at ?? payload.updatedAt ?? null,
-    company: payload.company ?? payload.companies ?? companyFromFlat ?? null,
-    worker: payload.worker ?? payload.workers ?? workerFromFlat ?? null,
-    documents: normalizeDocuments(payload.documents ?? payload.case_documents ?? []),
-    analysis: normalizeAnalysisPayload(payload.analysis ?? payload.case_analysis ?? null),
+    createdAt: base.created_at ?? payload.created_at ?? base.createdAt ?? null,
+    updatedAt: base.updated_at ?? payload.updated_at ?? base.updatedAt ?? null,
+    company:
+      payload.company ??
+      base.company ??
+      payload.companies ??
+      companyFromFlat ??
+      null,
+    worker:
+      payload.worker ??
+      base.worker ??
+      payload.workers ??
+      workerFromFlat ??
+      null,
+    documents: normalizeDocuments(
+      payload.documents ?? base.documents ?? payload.case_documents ?? []
+    ),
+    analysis: normalizeAnalysisPayload(
+      payload.analysis ??
+        base.analysis ??
+        payload.case_analysis ??
+        base.case_analysis ??
+        null
+    ),
   };
 }
 
@@ -400,6 +482,10 @@ function normalizeCaseDetail(payload: any): CaseDetail {
       null,
     documents: normalizedCase.documents,
     analysis,
+    workflowLogs: normalizeWorkflowLogs(
+      payload.workflowLogs ?? payload.workflow_logs ?? []
+    ),
+    emailsSentTo: analysis?.emailsSentTo,
   };
 }
 
@@ -515,10 +601,15 @@ export async function getCaseDetail(id: string): Promise<CaseDetail> {
   return normalizeCaseDetail(data);
 }
 
-export async function uploadPppAndGenerateAnalysis(
+export async function generateCaseAnalysis(
   caseId: string,
   file: File
-): Promise<CaseAnalysis> {
+): Promise<{
+  case: FrontendCase;
+  analysis: CaseAnalysis | null;
+  emailsSentTo: string[];
+  workflowLogs: WorkflowLog[];
+}> {
   const formData = new FormData();
   formData.append("pppFile", file);
 
@@ -527,31 +618,21 @@ export async function uploadPppAndGenerateAnalysis(
     body: formData,
   });
 
-  if (!res.ok) {
-    let errorMessage = "Falha ao enviar PPP para analise";
-    try {
-      const errorJson = await res.json();
-      if (errorJson?.error) {
-        errorMessage = errorJson.error;
-      } else if (errorJson?.message) {
-        errorMessage = errorJson.message;
-      }
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(errorMessage);
-  }
+  const data = await handleJsonResponse(res);
 
-  const data = await res.json();
-  return (
-    normalizeCaseAnalysis(data?.analysis ?? data) ?? {
-      id: String(data?.id ?? caseId),
-      case_id: caseId,
-      created_at: data?.created_at ?? null,
-      final_classification: data?.final_classification,
-      emailsSentTo: ensureStringArray(data?.emailsSentTo ?? data?.emails_sent_to),
-      extra_metadata: data?.extra_metadata ?? data?.metadata ?? null,
-      rules_result: normalizeAnalysisPayload(data?.rules_result ?? data),
-    }
-  );
+  return {
+    case: normalizeCaseResponse(data.case ?? data),
+    analysis: normalizeCaseAnalysis(data.analysis ?? data),
+    emailsSentTo:
+      ensureStringArray(data.emailsSentTo ?? data.analysis?.emailsSentTo) ?? [],
+    workflowLogs: normalizeWorkflowLogs(data.workflowLogs ?? data.workflow_logs ?? []),
+  };
 }
+
+
+
+
+
+
+
+
