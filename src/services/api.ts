@@ -151,6 +151,7 @@ export interface CaseAnalysis {
   raw_ai_result?: any;
   extra_metadata?: any;
   rules_result?: AnalysisResult | null;
+  parecerHtml?: string | null;
 }
 
 export interface CaseDetail {
@@ -368,6 +369,13 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     value.rawAiResult ??
     value.raw ??
     null;
+  const extraMetadata = value.extra_metadata ?? value.extraMetadata ?? value.metadata ?? null;
+  const parecerHtml =
+    value.parecerHtml ??
+    value.parecer_html ??
+    extraMetadata?.parecerHtml ??
+    rawAiResult?.parecerHtml ??
+    null;
 
   return {
     id: String(idSource),
@@ -384,8 +392,9 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
         value.recipients_list
     ),
     raw_ai_result: rawAiResult,
-    extra_metadata: value.extra_metadata ?? value.extraMetadata ?? value.metadata ?? null,
+    extra_metadata: extraMetadata,
     rules_result: rulesResult,
+    parecerHtml,
   };
 }
 

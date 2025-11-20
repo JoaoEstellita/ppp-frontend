@@ -11,6 +11,7 @@ import {
   AnalysisResult,
   WorkflowLog,
   CaseAnalysis,
+  API_BASE_URL,
 } from "@/src/services/api";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -252,6 +253,7 @@ export default function CaseDetailPage({ params }: PageProps) {
   const analysisBlocks = rulesResult?.blocks ?? [];
   const extraMetadata = analysis?.extra_metadata ?? (analysis as any)?.extraMetadata ?? null;
   const observations = extraMetadata?.observations;
+  const parecerHtml = analysis?.parecerHtml ?? extraMetadata?.parecerHtml ?? null;
   const emailsSentTo =
     analysis?.emailsSentTo ??
     (analysis as any)?.emails_sent_to ??
@@ -260,6 +262,15 @@ export default function CaseDetailPage({ params }: PageProps) {
   const workflowLogs = workflowLogsFromApi ?? [];
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
+  const isProcessing =
+    statusValue === "processing" || statusValue === "EM_ANALISE" || statusValue === "received";
+  const docxUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.docx`;
+  const pdfUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.pdf`;
+
+  const handleCopyParecer = () => {
+    if (!parecerHtml) return;
+    navigator.clipboard?.writeText(parecerHtml);
+  };
 
   return (
     <div>
@@ -348,9 +359,15 @@ export default function CaseDetailPage({ params }: PageProps) {
 
         <Card title="Analise do PPP">
           {!analysis ? (
-            <div className="text-sm text-gray-600">
-              Ainda nao analisado. Assim que o PPP for enviado, o parecer sera emitido e enviado por e-mail.
-            </div>
+            isProcessing ? (
+              <div className="text-sm text-gray-600">
+                PPP em analise automatica. Isso pode levar alguns minutos...
+              </div>
+            ) : (
+              <div className="text-sm text-gray-600">
+                Ainda nao analisado. Assim que o PPP for enviado, o parecer sera emitido e enviado por e-mail.
+              </div>
+            )
           ) : (
             <div className="space-y-6">
               <div>
@@ -380,7 +397,41 @@ export default function CaseDetailPage({ params }: PageProps) {
                     {summaryText}
                   </p>
                 )}
+                {parecerHtml && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <a
+                      href={docxUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Baixar DOCX
+                    </a>
+                    <a
+                      href={pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Baixar PDF
+                    </a>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCopyParecer}
+                      disabled={!parecerHtml}
+                    >
+                      Copiar parecer (HTML)
+                    </Button>
+                  </div>
+                )}
               </div>
+
+              {parecerHtml && (
+                <div className="prose max-w-none text-sm text-gray-800 border border-gray-200 rounded-lg p-4">
+                  <div dangerouslySetInnerHTML={{ __html: parecerHtml }} />
+                </div>
+              )}
 
               {analysisFlags.length > 0 && (
                 <div>
