@@ -23,12 +23,7 @@ interface PageProps {
 }
 
 const CASE_STATUS_LABELS: Record<string, string> = {
-  EM_ANALISE: "Em analise",
-  COMPLETO: "Completo",
-  INCOMPLETO: "Incompleto",
-  ERRO: "Erro",
-  new: "Aguardando envio do PPP",
-  received: "Aguardando envio do PPP",
+  pending_documents: "Aguardando envio do PPP",
   processing: "Documento recebido - em analise automatica",
   analyzed: "Analise concluida",
   error: "Erro na analise",
@@ -41,17 +36,12 @@ function getStatusBadgeVariant(value: CaseStatus | string):
   | "info"
   | "default" {
   switch (value) {
-    case "COMPLETO":
     case "analyzed":
       return "success";
-    case "EM_ANALISE":
     case "processing":
       return "info";
-    case "INCOMPLETO":
-    case "new":
-    case "received":
+    case "pending_documents":
       return "warning";
-    case "ERRO":
     case "error":
       return "danger";
     default:
@@ -60,7 +50,7 @@ function getStatusBadgeVariant(value: CaseStatus | string):
 }
 
 function formatCaseStatus(value: string | undefined | null) {
-  if (!value) return "Incompleto";
+  if (!value) return "Aguardando envio do PPP";
   return CASE_STATUS_LABELS[value] ?? value;
 }
 
@@ -206,6 +196,14 @@ export default function CaseDetailPage({ params }: PageProps) {
     fetchCase();
   }, [fetchCase]);
 
+  useEffect(() => {
+    if (!caseDetail || caseDetail.case.status !== "processing") return;
+    const interval = setInterval(() => {
+      fetchCase().catch((err) => console.error('Polling case error', err));
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [caseDetail, fetchCase]);
+
   if (loading) {
     return (
       <div className="text-center py-8 text-gray-600">
@@ -239,18 +237,20 @@ export default function CaseDetailPage({ params }: PageProps) {
   const companyName = resolvedCompany?.name ?? "-";
   const companyCnpj = resolvedCompany?.cnpj ?? "-";
   const rulesResult = resolveAnalysisResults(analysis);
+  const resolvedResults = analysis?.results ?? rulesResult ?? analysis?.raw_ai_result?.results ?? null;
   const finalClassification =
     analysis?.final_classification ??
-    (analysis as any)?.finalClassification ??
+    analysis?.finalClassification ??
+    resolvedResults?.finalClassification ??
     rulesResult?.finalClassification;
   const analysisDate =
     analysis?.created_at ??
     (analysis as any)?.generated_at ??
     (analysis as any)?.generatedAt ??
     null;
-  const summaryText = rulesResult?.summary ?? "";
-  const analysisFlags = rulesResult?.flags ?? [];
-  const analysisBlocks = rulesResult?.blocks ?? [];
+  const summaryText = resolvedResults?.summary ?? "";
+  const analysisFlags = resolvedResults?.flags ?? [];
+  const analysisBlocks = resolvedResults?.blocks ?? [];
   const extraMetadata = analysis?.extra_metadata ?? (analysis as any)?.extraMetadata ?? null;
   const observations = extraMetadata?.observations;
   const parecerHtml = analysis?.parecerHtml ?? extraMetadata?.parecerHtml ?? null;
@@ -262,8 +262,7 @@ export default function CaseDetailPage({ params }: PageProps) {
   const workflowLogs = workflowLogsFromApi ?? [];
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
-  const isProcessing =
-    statusValue === "processing" || statusValue === "EM_ANALISE" || statusValue === "received";
+  const isProcessing = statusValue === "processing";
   const docxUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.docx`;
   const pdfUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.pdf`;
 
@@ -358,16 +357,19 @@ export default function CaseDetailPage({ params }: PageProps) {
         </Card>
 
         <Card title="Analise do PPP">
-          {!analysis ? (
-            isProcessing ? (
-              <div className="text-sm text-gray-600">
-                PPP em analise automatica. Isso pode levar alguns minutos...
-              </div>
-            ) : (
-              <div className="text-sm text-gray-600">
-                Ainda nao analisado. Assim que o PPP for enviado, o parecer sera emitido e enviado por e-mail.
-              </div>
-            )
+          {statusValue === "error" ? (
+            <div className="text-sm text-red-600">
+              Nao foi possivel concluir a analise automatica do PPP. Tente reenviar o documento ou contate o suporte.
+            </div>
+          ) : isProcessing && !analysis ? (
+            <div className="text-sm text-gray-600 flex items-center gap-2">
+              <span className="inline-block h-3 w-3 animate-ping rounded-full bg-blue-500" />
+              PPP em analise automatica (OCR + IA). Isso pode levar alguns minutos.
+            </div>
+          ) : !analysis ? (
+            <div className="text-sm text-gray-600">
+              Ainda nao analisado. Assim que o PPP for enviado, o parecer sera emitido e enviado por e-mail.
+            </div>
           ) : (
             <div className="space-y-6">
               <div>
@@ -428,7 +430,7 @@ export default function CaseDetailPage({ params }: PageProps) {
               </div>
 
               {parecerHtml && (
-                <div className="prose max-w-none text-sm text-gray-800 border border-gray-200 rounded-lg p-4">
+                <div className="prose max-w-none text-sm text-gray-800 border border-gray-200 rounded-lg p-4 bg-white">
                   <div dangerouslySetInnerHTML={{ __html: parecerHtml }} />
                 </div>
               )}
@@ -437,7 +439,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Pontos de atencao</p>
                   <ul className="list-disc list-inside text-sm text-gray-700">
-                    {analysisFlags.map((flag) => (
+                    {analysisFlags.map((flag: string) => (
                       <li key={flag}>{flag}</li>
                     ))}
                   </ul>
@@ -446,7 +448,7 @@ export default function CaseDetailPage({ params }: PageProps) {
 
               {analysisBlocks.length > 0 ? (
                 <div className="space-y-4">
-                  {analysisBlocks.map((block, index) => {
+                  {analysisBlocks.map((block: any, index: number) => {
                     const blockId = block.blockId ?? block.id ?? String(index);
                     const title = block.title || (blockId ? `Bloco ${blockId}` : "Bloco");
                     const isCompliant =
@@ -457,7 +459,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                       block.issues ??
                       (block.findings
                         ? block.findings
-                            .map((finding) => finding.message)
+                            .map((finding: any) => finding.message)
                             .filter(Boolean)
                         : []);
                     return (
@@ -479,7 +481,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                         {block.analysis && <p className="text-sm text-gray-700 mb-2">{block.analysis}</p>}
                         {issues.length > 0 && !isCompliant && (
                           <ul className="list-disc list-inside space-y-1 text-xs text-gray-600">
-                            {issues.map((issue) => (
+                            {issues.map((issue: string) => (
                               <li key={issue}>{issue}</li>
                             ))}
                           </ul>

@@ -3,28 +3,27 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getCases, FrontendCase, FinalClassification, ApiError } from "@/src/services/api";
-import { CaseStatus } from "@/lib/types";
+import { getCases, FrontendCase, FinalClassification, ApiError, CaseStatus } from "@/src/services/api";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 
 const STATUS_LABELS: Record<CaseStatus, string> = {
-  EM_ANALISE: "Em analise",
-  COMPLETO: "Completo",
-  INCOMPLETO: "Incompleto",
-  ERRO: "Erro",
+  pending_documents: "Aguardando documentos",
+  processing: "Em analise automatica",
+  analyzed: "Analise concluida",
+  error: "Erro na analise",
 };
 
 function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "danger" | "info" | "default" {
   switch (status) {
-    case "COMPLETO":
+    case "analyzed":
       return "success";
-    case "EM_ANALISE":
+    case "processing":
       return "info";
-    case "INCOMPLETO":
-      return "danger";
-    case "ERRO":
+    case "pending_documents":
+      return "warning";
+    case "error":
       return "danger";
     default:
       return "default";
@@ -35,7 +34,7 @@ function formatStatusLabel(status: CaseStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
 
-function formatFinalClassification(value: FinalClassification | undefined): string {
+function formatFinalClassification(value: FinalClassification | string | undefined): string {
   switch (value) {
     case "ATENDE_INTEGRALMENTE":
       return "Atende";
@@ -48,7 +47,7 @@ function formatFinalClassification(value: FinalClassification | undefined): stri
   }
 }
 
-function getFinalClassificationVariant(value: FinalClassification | undefined): "success" | "warning" | "danger" | "info" | "default" {
+function getFinalClassificationVariant(value: FinalClassification | string | undefined): "success" | "warning" | "danger" | "info" | "default" {
   switch (value) {
     case "ATENDE_INTEGRALMENTE":
       return "success";

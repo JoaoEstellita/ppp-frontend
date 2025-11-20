@@ -24,15 +24,10 @@ export function CasePppUploadAndAnalysis({ caseId, onCompleted }: Props) {
     if (!file) return;
     try {
       setLoading(true);
-      const result = await generateCaseAnalysis(caseId, file);
+      await generateCaseAnalysis(caseId, file);
       await onCompleted?.();
       router.refresh();
-      const recipients = result.emailsSentTo;
-      if (recipients && recipients.length > 0) {
-        alert(`Analise automatica concluida. Parecer enviado para: ${recipients.join(", ")}`);
-      } else {
-        alert("PPP enviado para analise. O parecer sera enviado por e-mail.");
-      }
+      alert("Documento recebido. A analise automatica foi iniciada.");
     } catch (err: any) {
       console.error(err);
       alert(err?.message ?? "Erro ao enviar PPP para analise.");

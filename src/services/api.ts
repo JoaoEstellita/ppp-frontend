@@ -25,23 +25,13 @@ export const API_BASE_URL: string =
 
 // Tipos basicos usados pelo frontend
 
-export type BackendCaseStatus = "new" | "received" | "processing" | "analyzed" | "error";
-
-export type CaseStatus = "EM_ANALISE" | "COMPLETO" | "INCOMPLETO" | "ERRO";
-
-const BACKEND_TO_FRONTEND_STATUS: Record<BackendCaseStatus, CaseStatus> = {
-  new: "INCOMPLETO",
-  received: "INCOMPLETO",
-  processing: "EM_ANALISE",
-  analyzed: "COMPLETO",
-  error: "ERRO",
-};
+export type CaseStatus = "pending_documents" | "processing" | "analyzed" | "error";
 
 const KNOWN_CASE_STATUSES: CaseStatus[] = [
-  "EM_ANALISE",
-  "COMPLETO",
-  "INCOMPLETO",
-  "ERRO",
+  "pending_documents",
+  "processing",
+  "analyzed",
+  "error",
 ];
 
 export class ApiError extends Error {
@@ -89,13 +79,12 @@ export interface FrontendCase {
   id: string;
   status: CaseStatus;
   statusRaw?: string | null;
-  // ISO string vinda do backend (created_at) mapeada para camelCase
   createdAt: string | null;
   updatedAt?: string | null;
   company?: FrontendCompany | null;
   worker?: FrontendWorker | null;
   documents?: FrontendDocument[];
-  analysis?: AnalysisResult | null;
+  analysis?: CaseAnalysis | null;
 }
 
 // Tipo compativel com a estrutura antiga (para retrocompatibilidade com mock data)
@@ -153,6 +142,13 @@ export interface CaseAnalysis {
   rules_result?: AnalysisResult | null;
   parecerHtml?: string | null;
   parsedPpp?: any;
+  results?: AnalysisResult;
+  finalClassification?: string;
+  extraMetadata?: {
+    specialPeriods?: string[];
+    observations?: string;
+    [key: string]: any;
+  } | null;
 }
 
 export interface CaseDetail {
@@ -165,37 +161,20 @@ export interface CaseDetail {
   emailsSentTo?: string[];
 }
 
-const BACKEND_STATUS_VALUES: BackendCaseStatus[] = [
-  "new",
-  "received",
-  "processing",
-  "analyzed",
-  "error",
-];
-
-function isBackendCaseStatus(value: string): value is BackendCaseStatus {
-  return BACKEND_STATUS_VALUES.includes(value as BackendCaseStatus);
-}
-
 function normalizeCaseStatus(rawStatus: unknown): { status: CaseStatus; raw: string | null } {
   if (rawStatus === undefined || rawStatus === null) {
-    return { status: "INCOMPLETO", raw: null };
+    return { status: "pending_documents", raw: null };
   }
 
   const rawString = String(rawStatus);
   const lower = rawString.toLowerCase();
 
-  if (isBackendCaseStatus(lower)) {
-    return { status: BACKEND_TO_FRONTEND_STATUS[lower], raw: rawString };
-  }
-
-  const upper = rawString.toUpperCase();
-  const match = KNOWN_CASE_STATUSES.find((status) => status === upper);
+  const match = KNOWN_CASE_STATUSES.find((status) => status === lower);
   if (match) {
     return { status: match, raw: rawString };
   }
 
-  return { status: "INCOMPLETO", raw: rawString };
+  return { status: "pending_documents", raw: rawString };
 }
 
 function tryParseJson(value: string) {
@@ -383,6 +362,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     extraMetadata?.parsedPpp ??
     rawAiResult?.parsedPpp ??
     null;
+  const results = normalizeAnalysisPayload(value.results ?? value.rules_result ?? value.rulesResult);
 
   return {
     id: String(idSource),
@@ -403,6 +383,17 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     rules_result: rulesResult,
     parecerHtml,
     parsedPpp,
+    results: results ?? undefined,
+    finalClassification:
+      value.finalClassification ??
+      value.final_classification ??
+      rulesResult?.finalClassification,
+    extraMetadata:
+      extraMetadata ??
+      value.extra_metadata ??
+      value.extraMetadata ??
+      value.metadata ??
+      null,
   };
 }
 
@@ -479,7 +470,7 @@ function normalizeCaseResponse(payload: any): FrontendCase {
     documents: normalizeDocuments(
       payload.documents ?? base.documents ?? payload.case_documents ?? []
     ),
-    analysis: normalizeAnalysisPayload(
+    analysis: normalizeCaseAnalysis(
       payload.analysis ??
         base.analysis ??
         payload.case_analysis ??
@@ -641,12 +632,7 @@ export async function getCaseDetail(id: string): Promise<CaseDetail> {
 export async function generateCaseAnalysis(
   caseId: string,
   file: File
-): Promise<{
-  case: FrontendCase;
-  analysis: CaseAnalysis | null;
-  emailsSentTo: string[];
-  workflowLogs: WorkflowLog[];
-}> {
+): Promise<CaseDetail> {
   const formData = new FormData();
   formData.append("pppFile", file);
 
@@ -657,13 +643,7 @@ export async function generateCaseAnalysis(
 
   const data = await handleJsonResponse(res);
 
-  return {
-    case: normalizeCaseResponse(data.case ?? data),
-    analysis: normalizeCaseAnalysis(data.analysis ?? data),
-    emailsSentTo:
-      ensureStringArray(data.emailsSentTo ?? data.analysis?.emailsSentTo) ?? [],
-    workflowLogs: normalizeWorkflowLogs(data.workflowLogs ?? data.workflow_logs ?? []),
-  };
+  return normalizeCaseDetail(data);
 }
 
 
