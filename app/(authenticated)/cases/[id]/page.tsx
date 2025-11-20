@@ -10,6 +10,7 @@ import {
   BlockStatus,
   AnalysisResult,
   WorkflowLog,
+  CaseAnalysis,
 } from "@/src/services/api";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -160,9 +161,23 @@ function hasBlocks(value: unknown): value is AnalysisResult {
   return Boolean(
     value &&
       typeof value === "object" &&
-      "blocks" in value &&
-      Array.isArray((value as AnalysisResult).blocks)
+      ("blocks" in value || "summary" in value || "flags" in value)
   );
+}
+
+function resolveAnalysisResults(analysis: CaseAnalysis | null | undefined): AnalysisResult | null {
+  if (!analysis) return null;
+  if (hasBlocks(analysis.rules_result)) {
+    return analysis.rules_result;
+  }
+  const candidate: any = analysis;
+  if (hasBlocks(candidate.results)) {
+    return candidate.results;
+  }
+  if (hasBlocks(candidate.raw_ai_result?.results)) {
+    return candidate.raw_ai_result.results;
+  }
+  return null;
 }
 
 export default function CaseDetailPage({ params }: PageProps) {
@@ -209,12 +224,36 @@ export default function CaseDetailPage({ params }: PageProps) {
     );
   }
 
-  const { case: caseRecord, analysis, workflowLogs: workflowLogsFromApi } = caseDetail;
-  const rulesResult = hasBlocks(analysis?.rules_result)
-    ? analysis?.rules_result
-    : hasBlocks(analysis)
-      ? (analysis as AnalysisResult)
-      : null;
+  const {
+    case: caseRecord,
+    analysis,
+    workflowLogs: workflowLogsFromApi,
+    worker,
+    company,
+  } = caseDetail;
+  const resolvedWorker = worker ?? caseRecord.worker ?? null;
+  const resolvedCompany = company ?? caseRecord.company ?? null;
+  const workerName = resolvedWorker?.name ?? "-";
+  const workerCpf = resolvedWorker?.cpf ?? "-";
+  const companyName = resolvedCompany?.name ?? "-";
+  const companyCnpj = resolvedCompany?.cnpj ?? "-";
+  const rulesResult = resolveAnalysisResults(analysis);
+  const finalClassification =
+    analysis?.final_classification ??
+    (analysis as any)?.finalClassification ??
+    rulesResult?.finalClassification;
+  const analysisDate =
+    analysis?.created_at ??
+    (analysis as any)?.generated_at ??
+    (analysis as any)?.generatedAt ??
+    null;
+  const summaryText = rulesResult?.summary ?? "";
+  const analysisFlags = rulesResult?.flags ?? [];
+  const analysisBlocks = rulesResult?.blocks ?? [];
+  const extraMetadata = analysis?.extra_metadata ?? (analysis as any)?.extraMetadata ?? null;
+  const observations = extraMetadata?.observations;
+  const emailsSentTo =
+    analysis?.emailsSentTo ?? analysis?.emails_sent_to ?? caseDetail.emailsSentTo ?? [];
   const workflowLogs = workflowLogsFromApi ?? [];
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
@@ -242,13 +281,13 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
-                {caseRecord.worker?.name || "-"}
+                {workerName}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">CPF</p>
               <p className="text-base font-medium text-gray-900">
-                {caseRecord.worker?.cpf || "-"}
+                {workerCpf}
               </p>
             </div>
             {caseRecord.worker?.birthDate && (
@@ -267,13 +306,13 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Nome</p>
               <p className="text-base font-medium text-gray-900">
-                {caseRecord.company?.name || "-"}
+                {companyName}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">CNPJ</p>
               <p className="text-base font-medium text-gray-900">
-                {caseRecord.company?.cnpj || "-"}
+                {companyCnpj}
               </p>
             </div>
           </div>
@@ -311,51 +350,101 @@ export default function CaseDetailPage({ params }: PageProps) {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <Badge variant={getFinalClassificationVariant(analysis.final_classification)}>
-                    {formatFinalClassificationLabel(analysis.final_classification)}
-                  </Badge>
-                  <span className="text-sm text-gray-600">
-                    Concluida em {formatDateTime(analysis.created_at)}
-                  </span>
+              <div>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-base font-semibold text-gray-900">Resultado da analise</p>
+                    {analysisDate && (
+                      <p className="text-xs text-gray-500">
+                        Gerado em {formatDateTime(analysisDate)}
+                      </p>
+                    )}
+                  </div>
+                  {finalClassification && (
+                    <Badge variant={getFinalClassificationVariant(finalClassification)}>
+                      {formatFinalClassificationLabel(finalClassification)}
+                    </Badge>
+                  )}
                 </div>
-                {analysis.emailsSentTo && analysis.emailsSentTo.length > 0 && (
-                  <p className="text-sm text-gray-600">
-                    Parecer enviado para: {analysis.emailsSentTo.join(", ")}
+                {emailsSentTo && emailsSentTo.length > 0 && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Parecer enviado para: {emailsSentTo.join(", ")}
                   </p>
                 )}
-                {rulesResult?.summary && (
-                  <p className="text-sm text-gray-700">{rulesResult.summary}</p>
+                {summaryText && (
+                  <p className="mt-3 text-sm text-gray-800">
+                    <strong>Resumo:&nbsp;</strong>
+                    {summaryText}
+                  </p>
                 )}
               </div>
 
-              {rulesResult && rulesResult.blocks && rulesResult.blocks.length > 0 ? (
+              {analysisFlags.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Pontos de atencao</p>
+                  <ul className="list-disc list-inside text-sm text-gray-700">
+                    {analysisFlags.map((flag) => (
+                      <li key={flag}>{flag}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysisBlocks.length > 0 ? (
                 <div className="space-y-4">
-                  {rulesResult.blocks.map((block) => (
-                    <div key={block.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <h4 className="text-base font-semibold text-gray-900">{block.title}</h4>
-                        <Badge variant={getBlockStatusVariant(block.status)}>
-                          {formatBlockStatus(block.status)}
-                        </Badge>
+                  {analysisBlocks.map((block, index) => {
+                    const blockId = block.blockId ?? block.id ?? String(index);
+                    const title = block.title || (blockId ? `Bloco ${blockId}` : "Bloco");
+                    const isCompliant =
+                      typeof block.isCompliant === "boolean"
+                        ? block.isCompliant
+                        : block.status === "APPROVED";
+                    const issues =
+                      block.issues ??
+                      (block.findings
+                        ? block.findings
+                            .map((finding) => finding.message)
+                            .filter(Boolean)
+                        : []);
+                    return (
+                      <div key={`${blockId}-${title}`} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="text-sm font-semibold text-gray-900">
+                            {blockId ? `${blockId} - ${title}` : title}
+                          </h4>
+                          <span
+                            className={`text-xs rounded-full px-2 py-0.5 ${
+                              isCompliant
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {isCompliant ? "Conforme" : "Nao conforme"}
+                          </span>
+                        </div>
+                        {block.analysis && <p className="text-sm text-gray-700 mb-2">{block.analysis}</p>}
+                        {issues.length > 0 && !isCompliant && (
+                          <ul className="list-disc list-inside space-y-1 text-xs text-gray-600">
+                            {issues.map((issue) => (
+                              <li key={issue}>{issue}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
-                      {block.findings && block.findings.length > 0 ? (
-                        <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                          {block.findings.map((finding) => (
-                            <li key={finding.code}>{finding.message}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-500">Nenhum problema identificado.</p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">
-                  A analise foi concluida, e o parecer foi enviado por e-mail. Nenhum detalhe adicional foi retornado.
+                  Nenhum bloco detalhado foi retornado para esta analise.
                 </p>
+              )}
+
+              {observations && (
+                <div className="text-sm text-gray-700">
+                  <p className="font-semibold mb-1">Observacoes adicionais</p>
+                  <p>{observations}</p>
+                </div>
               )}
             </div>
           )}

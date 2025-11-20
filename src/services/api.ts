@@ -125,16 +125,21 @@ export interface BlockFinding {
 }
 
 export interface BlockAnalysis {
-  id: '5.1' | '5.2' | '5.3' | '5.4' | '5.5';
-  title: string;       // ex: 'Dados Administrativos (Itens 1 a 12)'
-  status: BlockStatus;
-  findings: BlockFinding[];
+  id?: '5.1' | '5.2' | '5.3' | '5.4' | '5.5' | string;
+  blockId?: string;
+  title?: string;       // ex: 'Dados Administrativos (Itens 1 a 12)'
+  status?: BlockStatus;
+  findings?: BlockFinding[];
+  analysis?: string;
+  isCompliant?: boolean;
+  issues?: string[];
 }
 
 export interface AnalysisResult {
-  blocks: BlockAnalysis[];
+  blocks?: BlockAnalysis[];
   finalClassification?: FinalClassification;
   summary?: string;
+  flags?: string[];
 }
 
 export interface CaseAnalysis {
@@ -283,9 +288,14 @@ function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
 
   const nestedRules = value.rules_result ? normalizeAnalysisPayload(value.rules_result) : null;
   const nestedAnalysis = value.analysis ? normalizeAnalysisPayload(value.analysis) : null;
+  const nestedResults =
+    value.results && value.results !== value
+      ? normalizeAnalysisPayload(value.results)
+      : null;
 
   const blocks =
     (Array.isArray(value.blocks) ? value.blocks : undefined) ??
+    nestedResults?.blocks ??
     nestedRules?.blocks ??
     nestedAnalysis?.blocks ??
     [];
@@ -293,12 +303,20 @@ function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
   const finalClassification =
     (value.finalClassification ??
       value.final_classification ??
+      nestedResults?.finalClassification ??
       nestedRules?.finalClassification ??
       nestedAnalysis?.finalClassification) as FinalClassification | undefined;
 
-  const summary = value.summary ?? nestedRules?.summary ?? nestedAnalysis?.summary;
+  const summary =
+    value.summary ?? nestedResults?.summary ?? nestedRules?.summary ?? nestedAnalysis?.summary;
 
-  if (!blocks.length && !finalClassification && !summary) {
+  const flags =
+    (Array.isArray(value.flags) ? value.flags.map((flag) => String(flag)) : undefined) ??
+    nestedResults?.flags ??
+    nestedRules?.flags ??
+    nestedAnalysis?.flags;
+
+  if ((!blocks || blocks.length === 0) && !finalClassification && !summary && !flags?.length) {
     return null;
   }
 
@@ -306,6 +324,7 @@ function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
     blocks,
     finalClassification,
     summary,
+    flags,
   };
 }
 
@@ -329,6 +348,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
   if (!value || typeof value !== "object") return null;
 
   const rulesPayload =
+    value.results ??
     value.rules_result ??
     value.rulesResult ??
     value.analysis ??
@@ -352,7 +372,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
   return {
     id: String(idSource),
     case_id: String(value.case_id ?? value.caseId ?? value.id ?? idSource),
-    created_at: value.created_at ?? value.createdAt ?? null,
+    created_at: value.created_at ?? value.createdAt ?? value.generated_at ?? value.generatedAt ?? null,
     final_classification:
       value.final_classification ??
       value.finalClassification ??
@@ -364,7 +384,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
         value.recipients_list
     ),
     raw_ai_result: rawAiResult,
-    extra_metadata: value.extra_metadata ?? value.metadata ?? null,
+    extra_metadata: value.extra_metadata ?? value.extraMetadata ?? value.metadata ?? null,
     rules_result: rulesResult,
   };
 }
