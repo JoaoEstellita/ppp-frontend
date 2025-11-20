@@ -196,13 +196,23 @@ export default function CaseDetailPage({ params }: PageProps) {
     fetchCase();
   }, [fetchCase]);
 
+  const pollingHasAnalysis =
+    !!caseDetail?.analysis &&
+    !!(
+      (caseDetail.analysis as any)?.finalClassification ||
+      (caseDetail.analysis as any)?.final_classification ||
+      (caseDetail.analysis as any)?.parecerHtml
+    );
+  const pollingIsProcessing =
+    caseDetail?.case.status === "processing" && !pollingHasAnalysis;
+
   useEffect(() => {
-    if (!caseDetail || caseDetail.case.status !== "processing") return;
+    if (!caseDetail || !pollingIsProcessing) return;
     const interval = setInterval(() => {
-      fetchCase().catch((err) => console.error('Polling case error', err));
+      fetchCase().catch((err) => console.error("Polling case error", err));
     }, 8000);
     return () => clearInterval(interval);
-  }, [caseDetail, fetchCase]);
+  }, [caseDetail, pollingIsProcessing, fetchCase]);
 
   if (loading) {
     return (
@@ -262,7 +272,13 @@ export default function CaseDetailPage({ params }: PageProps) {
   const workflowLogs = workflowLogsFromApi ?? [];
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
-  const isProcessing = statusValue === "processing";
+  const hasAnalysis =
+    Boolean(
+      (analysis?.final_classification ?? analysis?.finalClassification ?? resolvedResults?.finalClassification) ||
+        parecerHtml
+    );
+  const isAnalyzed = statusValue === "analyzed" || hasAnalysis;
+  const isProcessing = statusValue === "processing" && !isAnalyzed;
   const docxUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.docx`;
   const pdfUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.pdf`;
 
