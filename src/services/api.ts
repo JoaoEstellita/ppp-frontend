@@ -152,6 +152,7 @@ export interface CaseAnalysis {
   extra_metadata?: any;
   rules_result?: AnalysisResult | null;
   parecerHtml?: string | null;
+  parsedPpp?: any;
 }
 
 export interface CaseDetail {
@@ -376,6 +377,12 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     extraMetadata?.parecerHtml ??
     rawAiResult?.parecerHtml ??
     null;
+  const parsedPpp =
+    value.parsedPpp ??
+    value.parsed_ppp ??
+    extraMetadata?.parsedPpp ??
+    rawAiResult?.parsedPpp ??
+    null;
 
   return {
     id: String(idSource),
@@ -395,6 +402,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     extra_metadata: extraMetadata,
     rules_result: rulesResult,
     parecerHtml,
+    parsedPpp,
   };
 }
 
