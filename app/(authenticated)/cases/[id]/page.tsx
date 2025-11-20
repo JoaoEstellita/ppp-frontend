@@ -253,7 +253,10 @@ export default function CaseDetailPage({ params }: PageProps) {
   const extraMetadata = analysis?.extra_metadata ?? (analysis as any)?.extraMetadata ?? null;
   const observations = extraMetadata?.observations;
   const emailsSentTo =
-    analysis?.emailsSentTo ?? analysis?.emails_sent_to ?? caseDetail.emailsSentTo ?? [];
+    analysis?.emailsSentTo ??
+    (analysis as any)?.emails_sent_to ??
+    caseDetail.emailsSentTo ??
+    [];
   const workflowLogs = workflowLogsFromApi ?? [];
   const statusValue = caseRecord.statusRaw || caseRecord.status;
   const statusLabel = formatCaseStatus(statusValue);
