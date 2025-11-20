@@ -15,7 +15,10 @@ export function ServerWarmupBanner() {
 
     const wakeBackend = async () => {
       try {
-        const res = await fetch(HEALTH_URL, { signal: controller.signal });
+        const res = await fetch(HEALTH_URL, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
         if (!res.ok) {
           throw new Error(`Status ${res.status}`);
         }
