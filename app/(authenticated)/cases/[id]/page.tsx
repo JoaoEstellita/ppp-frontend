@@ -177,6 +177,7 @@ export default function CaseDetailPage({ params }: PageProps) {
   const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchCase = useCallback(async () => {
     try {
@@ -240,11 +241,7 @@ export default function CaseDetailPage({ params }: PageProps) {
     (analysis as any)?.generated_at ??
     (analysis as any)?.generatedAt ??
     null;
-  const summaryText = resolvedResults?.summary ?? "";
-  const analysisFlags = resolvedResults?.flags ?? [];
-  const analysisBlocks = resolvedResults?.blocks ?? [];
   const extraMetadata = analysis?.extra_metadata ?? (analysis as any)?.extraMetadata ?? null;
-  const observations = extraMetadata?.observations;
   const parecerHtml = analysis?.parecerHtml ?? extraMetadata?.parecerHtml ?? null;
   const emailsSentTo =
     analysis?.emailsSentTo ??
@@ -252,15 +249,15 @@ export default function CaseDetailPage({ params }: PageProps) {
     caseDetail.emailsSentTo ??
     [];
   const workflowLogs = workflowLogsFromApi ?? [];
-  const statusValue = caseRecord.statusRaw || caseRecord.status;
-  const statusLabel = formatCaseStatus(statusValue);
-  const hasAnalysis =
-    Boolean(
-      (analysis?.final_classification ?? analysis?.finalClassification ?? resolvedResults?.finalClassification) ||
-        parecerHtml
-    );
-  const isAnalyzed = statusValue === "analyzed" || hasAnalysis;
-  const isProcessing = statusValue === "processing" && !isAnalyzed;
+  const caseStatus = (caseRecord.statusRaw || caseRecord.status) as CaseStatus;
+  const statusLabel = formatCaseStatus(caseStatus);
+  const hasAnalysis = !!analysis;
+  const hasReport = !!analysis?.parecerHtml;
+  const summary =
+    analysis?.results?.summary ??
+    analysis?.raw_ai_result?.results?.summary ??
+    resolvedResults?.summary ??
+    null;
   const docxUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.docx`;
   const pdfUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.pdf`;
 
@@ -268,8 +265,15 @@ export default function CaseDetailPage({ params }: PageProps) {
     if (!parecerHtml) return;
     navigator.clipboard?.writeText(parecerHtml);
   };
-  const handleRefresh = () => {
-    fetchCase().catch((err) => console.error("Manual refresh error", err));
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      await fetchCase();
+    } catch (err) {
+      console.error("Manual refresh error", err);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -343,7 +347,7 @@ export default function CaseDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm text-gray-600">Status</p>
               <div className="mt-1">
-                <Badge variant={getStatusBadgeVariant(statusValue || caseRecord.status)}>
+                <Badge variant={getStatusBadgeVariant(caseStatus)}>
                   {statusLabel}
                 </Badge>
               </div>
@@ -357,165 +361,79 @@ export default function CaseDetailPage({ params }: PageProps) {
           </div>
           <div className="mt-4">
             <Button variant="outline" onClick={handleRefresh}>
-              Atualizar situação do caso
+              Atualizar situacao do caso
             </Button>
           </div>
         </Card>
 
-        <Card title="Analise do PPP">
-          {statusValue === "pending_documents" ? (
+                <Card title="Analise do PPP">
+          {caseStatus === "pending_documents" ? (
             <div className="text-sm text-gray-600">
-              Ainda não há PPP enviado para este caso.
+              Ainda nao foi enviado nenhum PPP. Envie o documento acima para iniciar a analise automatica.
             </div>
-          ) : statusValue === "processing" && !hasAnalysis ? (
+          ) : caseStatus === "processing" && !hasAnalysis ? (
             <div className="text-sm text-gray-600 flex items-center gap-2">
               <span className="inline-block h-3 w-3 animate-ping rounded-full bg-blue-500" />
-              PPP em analise automatica (OCR + IA). Isso pode levar alguns minutos. Você pode clicar em “Atualizar situação do caso” mais tarde para ver o resultado.
+              PPP em analise automatica (OCR + IA). Isso pode levar alguns minutos. Voce pode continuar usando o sistema normalmente e clicar em &quot;Atualizar situacao do caso&quot; mais tarde para ver se o laudo ja esta disponivel.
             </div>
-          ) : statusValue === "error" ? (
+          ) : caseStatus === "error" ? (
             <div className="text-sm text-red-600">
-              Não foi possível concluir a análise automática do PPP. Tente reenviar o documento ou contate o suporte.
+              Nao foi possivel concluir a analise automatica do PPP. Tente reenviar o documento ou contate o suporte.
             </div>
-          ) : isAnalyzed && !hasAnalysis ? (
-            <div className="text-sm text-gray-600">
-              A análise foi concluída, mas o laudo ainda não está disponível. Clique em “Atualizar situação do caso” em alguns instantes.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div>
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-base font-semibold text-gray-900">Resultado da analise</p>
-                    {analysisDate && (
-                      <p className="text-xs text-gray-500">
-                        Gerado em {formatDateTime(analysisDate)}
-                      </p>
-                    )}
-                  </div>
-                  {finalClassification && (
-                    <Badge variant={getFinalClassificationVariant(finalClassification)}>
-                      {formatFinalClassificationLabel(finalClassification)}
-                    </Badge>
-                  )}
-                </div>
-                {emailsSentTo && emailsSentTo.length > 0 && (
-                  <p className="text-sm text-gray-600 mt-2">
-                    Parecer enviado para: {emailsSentTo.join(", ")}
-                  </p>
-                )}
-                {summaryText && (
-                  <p className="mt-3 text-sm text-gray-800">
-                    <strong>Resumo:&nbsp;</strong>
-                    {summaryText}
-                  </p>
-                )}
-                {hasAnalysis && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <a
-                      href={docxUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Baixar laudo (DOCX)
-                    </a>
-                    <a
-                      href={pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Baixar laudo (PDF)
-                    </a>
-                    {parecerHtml && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleCopyParecer}
-                        disabled={!parecerHtml}
-                      >
-                        Copiar parecer (HTML)
-                      </Button>
-                    )}
-                  </div>
+          ) : caseStatus === "analyzed" && hasAnalysis && hasReport ? (
+            <div className="space-y-4 text-sm">
+              {summary && (
+                <p>
+                  <strong>Resumo tecnico:</strong> {summary}
+                </p>
+              )}
+              {finalClassification && (
+                <p>
+                  <strong>Classificacao final:</strong> {finalClassification}
+                </p>
+              )}
+              <p className="text-gray-600">
+                O laudo tecnico completo sera disponibilizado em PDF e enviado por e-mail aos responsaveis cadastrados. Abaixo voce pode visualizar o texto tecnico gerado pela analise automatica.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={docxUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Baixar laudo (DOCX)
+                </a>
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Baixar laudo (PDF)
+                </a>
+                {parecerHtml && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCopyParecer}
+                    disabled={!parecerHtml}
+                  >
+                    Copiar parecer (HTML)
+                  </Button>
                 )}
               </div>
-
               {parecerHtml && (
-                <div className="prose max-w-none text-sm text-gray-800 border border-gray-200 rounded-lg p-4 bg-white">
+                <div className="prose prose-sm max-w-none border rounded-md p-4 bg-white">
                   <div dangerouslySetInnerHTML={{ __html: parecerHtml }} />
                 </div>
               )}
-
-              {analysisFlags.length > 0 && (
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Pontos de atencao</p>
-                  <ul className="list-disc list-inside text-sm text-gray-700">
-                    {analysisFlags.map((flag: string) => (
-                      <li key={flag}>{flag}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {analysisBlocks.length > 0 ? (
-                <div className="space-y-4">
-                  {analysisBlocks.map((block: any, index: number) => {
-                    const blockId = block.blockId ?? block.id ?? String(index);
-                    const title = block.title || (blockId ? `Bloco ${blockId}` : "Bloco");
-                    const isCompliant =
-                      typeof block.isCompliant === "boolean"
-                        ? block.isCompliant
-                        : block.status === "APPROVED";
-                    const issues =
-                      block.issues ??
-                      (block.findings
-                        ? block.findings
-                            .map((finding: any) => finding.message)
-                            .filter(Boolean)
-                        : []);
-                    return (
-                      <div key={`${blockId}-${title}`} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="text-sm font-semibold text-gray-900">
-                            {blockId ? `${blockId} - ${title}` : title}
-                          </h4>
-                          <span
-                            className={`text-xs rounded-full px-2 py-0.5 ${
-                              isCompliant
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {isCompliant ? "Conforme" : "Nao conforme"}
-                          </span>
-                        </div>
-                        {block.analysis && <p className="text-sm text-gray-700 mb-2">{block.analysis}</p>}
-                        {issues.length > 0 && !isCompliant && (
-                          <ul className="list-disc list-inside space-y-1 text-xs text-gray-600">
-                            {issues.map((issue: string) => (
-                              <li key={issue}>{issue}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  Nenhum bloco detalhado foi retornado para esta analise.
-                </p>
-              )}
-
-              {observations && (
-                <div className="text-sm text-gray-700">
-                  <p className="font-semibold mb-1">Observacoes adicionais</p>
-                  <p>{observations}</p>
-                </div>
-              )}
             </div>
-          )}
+          ) : caseStatus === "analyzed" && !hasReport ? (
+            <div className="text-sm text-gray-600">
+              A analise foi concluida, mas o laudo ainda esta sendo finalizado. Clique em &quot;Atualizar situacao do caso&quot; em alguns instantes.
+            </div>
+          ) : null}
         </Card>
         {workflowLogs.length > 0 && (
           <Card title="Historico do caso">
@@ -542,3 +460,7 @@ export default function CaseDetailPage({ params }: PageProps) {
     </div>
   );
 }
+
+
+
+
