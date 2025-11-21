@@ -218,7 +218,7 @@ export default function CaseDetailPage({ params }: PageProps) {
 
   const {
     case: caseRecord,
-    analysis,
+    analysis: analysisFromApi,
     workflowLogs: workflowLogsFromApi,
     worker,
     company,
@@ -229,6 +229,9 @@ export default function CaseDetailPage({ params }: PageProps) {
   const workerCpf = resolvedWorker?.cpf ?? "-";
   const companyName = resolvedCompany?.name ?? "-";
   const companyCnpj = resolvedCompany?.cnpj ?? "-";
+  const analysis = analysisFromApi ?? null;
+  const hasAnalysis = !!analysis && !!analysis.finalClassification;
+  const hasReport = !!analysis?.parecerHtml;
   const rulesResult = resolveAnalysisResults(analysis);
   const resolvedResults = analysis?.results ?? rulesResult ?? analysis?.raw_ai_result?.results ?? null;
   const finalClassification =
@@ -249,15 +252,17 @@ export default function CaseDetailPage({ params }: PageProps) {
     caseDetail.emailsSentTo ??
     [];
   const workflowLogs = workflowLogsFromApi ?? [];
-  const caseStatus = (caseRecord.statusRaw || caseRecord.status) as CaseStatus;
+  const rawStatus = (caseRecord.statusRaw || caseRecord.status) as CaseStatus;
+  const caseStatus: CaseStatus = hasAnalysis ? "analyzed" : rawStatus;
   const statusLabel = formatCaseStatus(caseStatus);
-  const hasAnalysis = !!analysis;
-  const hasReport = !!analysis?.parecerHtml;
   const summary =
     analysis?.results?.summary ??
     analysis?.raw_ai_result?.results?.summary ??
     resolvedResults?.summary ??
     null;
+  const isPending = caseStatus === "pending_documents";
+  const isProcessing = caseStatus === "processing";
+  const isError = caseStatus === "error";
   const docxUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.docx`;
   const pdfUrl = `${API_BASE_URL}/cases/${caseRecord.id}/parecer.pdf`;
 
