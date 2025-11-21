@@ -196,24 +196,6 @@ export default function CaseDetailPage({ params }: PageProps) {
     fetchCase();
   }, [fetchCase]);
 
-  const pollingHasAnalysis =
-    !!caseDetail?.analysis &&
-    !!(
-      (caseDetail.analysis as any)?.finalClassification ||
-      (caseDetail.analysis as any)?.final_classification ||
-      (caseDetail.analysis as any)?.parecerHtml
-    );
-  const pollingIsProcessing =
-    caseDetail?.case.status === "processing" && !pollingHasAnalysis;
-
-  useEffect(() => {
-    if (!caseDetail || !pollingIsProcessing) return;
-    const interval = setInterval(() => {
-      fetchCase().catch((err) => console.error("Polling case error", err));
-    }, 8000);
-    return () => clearInterval(interval);
-  }, [caseDetail, pollingIsProcessing, fetchCase]);
-
   if (loading) {
     return (
       <div className="text-center py-8 text-gray-600">
@@ -285,6 +267,9 @@ export default function CaseDetailPage({ params }: PageProps) {
   const handleCopyParecer = () => {
     if (!parecerHtml) return;
     navigator.clipboard?.writeText(parecerHtml);
+  };
+  const handleRefresh = () => {
+    fetchCase().catch((err) => console.error("Manual refresh error", err));
   };
 
   return (
@@ -370,21 +355,30 @@ export default function CaseDetailPage({ params }: PageProps) {
               </p>
             </div>
           </div>
+          <div className="mt-4">
+            <Button variant="outline" onClick={handleRefresh}>
+              Atualizar situação do caso
+            </Button>
+          </div>
         </Card>
 
         <Card title="Analise do PPP">
-          {statusValue === "error" ? (
-            <div className="text-sm text-red-600">
-              Nao foi possivel concluir a analise automatica do PPP. Tente reenviar o documento ou contate o suporte.
+          {statusValue === "pending_documents" ? (
+            <div className="text-sm text-gray-600">
+              Ainda não há PPP enviado para este caso.
             </div>
-          ) : isProcessing && !analysis ? (
+          ) : statusValue === "processing" && !hasAnalysis ? (
             <div className="text-sm text-gray-600 flex items-center gap-2">
               <span className="inline-block h-3 w-3 animate-ping rounded-full bg-blue-500" />
-              PPP em analise automatica (OCR + IA). Isso pode levar alguns minutos.
+              PPP em analise automatica (OCR + IA). Isso pode levar alguns minutos. Você pode clicar em “Atualizar situação do caso” mais tarde para ver o resultado.
             </div>
-          ) : !analysis ? (
+          ) : statusValue === "error" ? (
+            <div className="text-sm text-red-600">
+              Não foi possível concluir a análise automática do PPP. Tente reenviar o documento ou contate o suporte.
+            </div>
+          ) : isAnalyzed && !hasAnalysis ? (
             <div className="text-sm text-gray-600">
-              Ainda nao analisado. Assim que o PPP for enviado, o parecer sera emitido e enviado por e-mail.
+              A análise foi concluída, mas o laudo ainda não está disponível. Clique em “Atualizar situação do caso” em alguns instantes.
             </div>
           ) : (
             <div className="space-y-6">
@@ -415,7 +409,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                     {summaryText}
                   </p>
                 )}
-                {parecerHtml && (
+                {hasAnalysis && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     <a
                       href={docxUrl}
@@ -423,7 +417,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                       rel="noopener noreferrer"
                       className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
-                      Baixar DOCX
+                      Baixar laudo (DOCX)
                     </a>
                     <a
                       href={pdfUrl}
@@ -431,16 +425,18 @@ export default function CaseDetailPage({ params }: PageProps) {
                       rel="noopener noreferrer"
                       className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
-                      Baixar PDF
+                      Baixar laudo (PDF)
                     </a>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleCopyParecer}
-                      disabled={!parecerHtml}
-                    >
-                      Copiar parecer (HTML)
-                    </Button>
+                    {parecerHtml && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleCopyParecer}
+                        disabled={!parecerHtml}
+                      >
+                        Copiar parecer (HTML)
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
