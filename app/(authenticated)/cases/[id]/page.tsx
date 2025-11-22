@@ -24,9 +24,9 @@ interface PageProps {
 
 const CASE_STATUS_LABELS: Record<string, string> = {
   pending_documents: "Aguardando envio do PPP",
-  processing: "Documento recebido - em analise automatica",
-  analyzed: "Analise concluida",
-  error: "Erro na analise",
+  processing: "Documento recebido - em análise em andamento",
+  analyzed: "Análise concluída",
+  error: "Erro na análise",
 };
 
 function getStatusBadgeVariant(value: CaseStatus | string):
@@ -134,8 +134,8 @@ function formatDateOnly(iso: string | null | undefined) {
 
 const WORKFLOW_STEP_LABELS: Record<string, string> = {
   PPP_UPLOADED: "PPP recebido",
-  SENT_TO_N8N: "Enviado para analise automatica",
-  N8N_ANALYSIS_RECEIVED: "Analise automatica concluida",
+  SENT_TO_N8N: "Enviado para análise técnica",
+  N8N_ANALYSIS_RECEIVED: "Análise técnica concluída",
   ANALYSIS_SAVED: "Resultado salvo",
   EMAIL_SENT: "Parecer enviado por e-mail",
   N8N_ERROR: "Erro ao integrar com n8n",
@@ -293,8 +293,8 @@ export default function CaseDetailPage({ params }: PageProps) {
       <div className="space-y-6">
         <Card title="Enviar PPP para analise">
           <p className="text-sm text-gray-600 mb-4">
-            Faca o upload do PPP em PDF e o parecer sera enviado automaticamente por e-mail
-            aos responsaveis cadastrados.
+            Faça o upload do PPP em PDF e o parecer será enviado por e-mail aos
+            responsáveis cadastrados.
           </p>
           <CasePppUploadAndAnalysis caseId={caseRecord.id} onCompleted={fetchCase} />
         </Card>
@@ -371,19 +371,19 @@ export default function CaseDetailPage({ params }: PageProps) {
           </div>
         </Card>
 
-                <Card title="Analise do PPP">
+        <Card title="Analise do PPP">
           {caseStatus === "pending_documents" ? (
             <div className="text-sm text-gray-600">
-              Ainda nao foi enviado nenhum PPP. Envie o documento acima para iniciar a analise automatica.
+              Ainda não foi enviado nenhum PPP. Envie o documento acima para iniciar a análise técnica.
             </div>
           ) : caseStatus === "processing" && !hasAnalysis ? (
             <div className="text-sm text-gray-600 flex items-center gap-2">
               <span className="inline-block h-3 w-3 animate-ping rounded-full bg-blue-500" />
-              PPP em analise automatica (OCR + IA). Isso pode levar alguns minutos. Voce pode continuar usando o sistema normalmente e clicar em &quot;Atualizar situacao do caso&quot; mais tarde para ver se o laudo ja esta disponivel.
+              PPP em análise técnica. Isso pode levar alguns minutos. Você pode continuar usando o sistema normalmente e clicar em &quot;Atualizar situação do caso&quot; mais tarde para verificar o laudo.
             </div>
           ) : caseStatus === "error" ? (
             <div className="text-sm text-red-600">
-              Nao foi possivel concluir a analise automatica do PPP. Tente reenviar o documento ou contate o suporte.
+              Não foi possível concluir a análise do PPP. Tente reenviar o documento ou contate o suporte.
             </div>
           ) : caseStatus === "analyzed" && hasAnalysis && hasReport ? (
             <div className="space-y-4 text-sm">
@@ -398,7 +398,7 @@ export default function CaseDetailPage({ params }: PageProps) {
                 </p>
               )}
               <p className="text-gray-600">
-                O laudo tecnico completo sera disponibilizado em PDF e enviado por e-mail aos responsaveis cadastrados. Abaixo voce pode visualizar o texto tecnico gerado pela analise automatica.
+                O laudo técnico completo será disponibilizado em PDF e enviado por e-mail aos responsáveis cadastrados. Abaixo você pode visualizar o texto técnico gerado pela análise.
               </p>
               <div className="flex flex-wrap gap-2">
                 <a
@@ -436,7 +436,7 @@ export default function CaseDetailPage({ params }: PageProps) {
             </div>
           ) : caseStatus === "analyzed" && !hasReport ? (
             <div className="text-sm text-gray-600">
-              A analise foi concluida, mas o laudo ainda esta sendo finalizado. Clique em &quot;Atualizar situacao do caso&quot; em alguns instantes.
+              A análise foi concluída, mas o laudo ainda está sendo finalizado. Clique em &quot;Atualizar situação do caso&quot; em alguns instantes.
             </div>
           ) : null}
         </Card>
