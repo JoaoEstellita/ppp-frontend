@@ -11,6 +11,7 @@ import {
   AnalysisResult,
   WorkflowLog,
   CaseAnalysis,
+  BlockAnalysis,
   API_BASE_URL,
 } from "@/src/services/api";
 import { Card } from "@/components/Card";
@@ -231,9 +232,9 @@ export default function CaseDetailPage({ params }: PageProps) {
   const companyCnpj = resolvedCompany?.cnpj ?? "-";
   const analysis = analysisFromApi ?? null;
   const hasAnalysis = !!analysis && !!analysis.finalClassification;
-  const hasReport = !!analysis?.parecerHtml;
   const rulesResult = resolveAnalysisResults(analysis);
   const resolvedResults = analysis?.results ?? rulesResult ?? analysis?.raw_ai_result?.results ?? null;
+  const resolvedBlocks = resolvedResults?.blocks ?? [];
   const finalClassification =
     analysis?.final_classification ??
     analysis?.finalClassification ??
@@ -245,7 +246,15 @@ export default function CaseDetailPage({ params }: PageProps) {
     (analysis as any)?.generatedAt ??
     null;
   const extraMetadata = analysis?.extra_metadata ?? (analysis as any)?.extraMetadata ?? null;
-  const parecerHtml = analysis?.parecerHtml ?? extraMetadata?.parecerHtml ?? null;
+  const parecerHtml =
+    analysis?.parecerHtml ??
+    (analysis as any)?.html ??
+    extraMetadata?.parecerHtml ??
+    extraMetadata?.html ??
+    analysis?.raw_ai_result?.parecerHtml ??
+    analysis?.raw_ai_result?.html ??
+    null;
+  const hasReport = !!parecerHtml;
   const emailsSentTo =
     analysis?.emailsSentTo ??
     (analysis as any)?.emails_sent_to ??
@@ -394,7 +403,7 @@ export default function CaseDetailPage({ params }: PageProps) {
               )}
               {finalClassification && (
                 <p>
-                  <strong>Classificacao final:</strong> {finalClassification}
+                  <strong>Classificacao final:</strong> {formatFinalClassificationLabel(finalClassification)}
                 </p>
               )}
               <p className="text-gray-600">
@@ -431,6 +440,44 @@ export default function CaseDetailPage({ params }: PageProps) {
               {parecerHtml && (
                 <div className="prose prose-sm max-w-none border rounded-md p-4 bg-white">
                   <div dangerouslySetInnerHTML={{ __html: parecerHtml }} />
+                </div>
+              )}
+              {resolvedBlocks.length > 0 && (
+                <div className="space-y-3">
+                  <p className="font-medium">Detalhamento por bloco</p>
+                  <div className="space-y-2">
+                    {resolvedBlocks.map((block: BlockAnalysis, idx: number) => {
+                      const compliant =
+                        typeof block.isCompliant === "boolean" ? block.isCompliant : false;
+                      const issues = Array.isArray(block.issues) ? block.issues : [];
+                      return (
+                        <div
+                          key={`${block.blockId ?? idx}`}
+                          className="rounded-md border border-gray-200 p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-medium">
+                              {block.blockId ? `${block.blockId} - ` : ""}
+                              {block.title ?? "Bloco"}
+                            </div>
+                            <Badge variant={compliant ? "success" : "danger"}>
+                              {compliant ? "Conforme" : "Não conforme"}
+                            </Badge>
+                          </div>
+                          {block.analysis && (
+                            <p className="text-sm text-gray-700 mt-1">{block.analysis}</p>
+                          )}
+                          {!compliant && issues.length > 0 && (
+                            <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
+                              {issues.map((issue, issueIdx) => (
+                                <li key={issueIdx}>{issue}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

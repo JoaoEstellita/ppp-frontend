@@ -114,14 +114,14 @@ export interface BlockFinding {
 }
 
 export interface BlockAnalysis {
-  id?: '5.1' | '5.2' | '5.3' | '5.4' | '5.5' | string;
-  blockId?: string;
+  blockId?: '5.1' | '5.2' | '5.3' | '5.4' | '5.5' | string;
   title?: string;       // ex: 'Dados Administrativos (Itens 1 a 12)'
-  status?: BlockStatus;
-  findings?: BlockFinding[];
   analysis?: string;
   isCompliant?: boolean;
   issues?: string[];
+  status?: BlockStatus;
+  findings?: BlockFinding[];
+  [key: string]: any;
 }
 
 export interface AnalysisResult {
@@ -141,6 +141,7 @@ export interface CaseAnalysis {
   extra_metadata?: any;
   rules_result?: AnalysisResult | null;
   parecerHtml?: string | null;
+  html?: string | null;
   parsedPpp?: any;
   results?: AnalysisResult;
   finalClassification?: string;
@@ -274,12 +275,36 @@ function normalizeAnalysisPayload(raw: any): AnalysisResult | null {
       ? normalizeAnalysisPayload(value.results)
       : null;
 
-  const blocks =
+  const rawBlocks =
     (Array.isArray(value.blocks) ? value.blocks : undefined) ??
     nestedResults?.blocks ??
     nestedRules?.blocks ??
     nestedAnalysis?.blocks ??
     [];
+  const blocks: BlockAnalysis[] | undefined = Array.isArray(rawBlocks)
+    ? rawBlocks.map((block: any) => {
+        if (!block) return null;
+        const blockId = block.blockId ?? block.id;
+        const isCompliant =
+          typeof block.isCompliant === "boolean"
+            ? block.isCompliant
+            : block.status
+            ? String(block.status).toUpperCase() === "APPROVED"
+            : undefined;
+        const issues = Array.isArray(block.issues)
+          ? block.issues.map((item: any) => String(item))
+          : [];
+        return {
+          blockId,
+          title: block.title ?? block.name ?? block.label,
+          analysis: block.analysis ?? block.text ?? block.details,
+          isCompliant,
+          issues,
+          status: block.status,
+          findings: block.findings,
+        } as BlockAnalysis;
+      }).filter((b): b is BlockAnalysis => Boolean(b))
+    : undefined;
 
   const finalClassification =
     (value.finalClassification ??
@@ -353,8 +378,11 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
   const parecerHtml =
     value.parecerHtml ??
     value.parecer_html ??
+    value.html ??
     extraMetadata?.parecerHtml ??
+    extraMetadata?.html ??
     rawAiResult?.parecerHtml ??
+    rawAiResult?.html ??
     null;
   const parsedPpp =
     value.parsedPpp ??
@@ -382,6 +410,7 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     extra_metadata: extraMetadata,
     rules_result: rulesResult,
     parecerHtml,
+    html: parecerHtml ?? undefined,
     parsedPpp,
     results: results ?? undefined,
     finalClassification:
