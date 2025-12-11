@@ -9,6 +9,7 @@ export function Sidebar() {
   const links = [
     { href: "/cases", label: "Casos" },
     { href: "/cases/new", label: "Novo caso" },
+    { href: "/assinatura", label: "Minha assinatura" },
   ];
 
   return (
