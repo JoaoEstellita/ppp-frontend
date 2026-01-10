@@ -25,13 +25,25 @@ export const API_BASE_URL: string =
 
 // Tipos basicos usados pelo frontend
 
-export type CaseStatus = "pending_documents" | "processing" | "analyzed" | "error";
+export type CaseStatus =
+  | "awaiting_payment"
+  | "paid_processing"
+  | "done"
+  | "pending_info"
+  | "error"
+  | "pending_documents"
+  | "processing"
+  | "analyzed";
 
 const KNOWN_CASE_STATUSES: CaseStatus[] = [
+  "awaiting_payment",
+  "paid_processing",
+  "done",
+  "pending_info",
+  "error",
   "pending_documents",
   "processing",
   "analyzed",
-  "error",
 ];
 
 export class ApiError extends Error {
@@ -66,6 +78,15 @@ export type FrontendDocument = {
   url?: string;
 };
 
+export type CasePayment = {
+  id: string;
+  status: string;
+  amount?: number;
+  payment_url?: string | null;
+  paymentUrl?: string | null;
+  paid_at?: string | null;
+};
+
 export interface WorkflowLog {
   id: string;
   step: string;
@@ -85,6 +106,7 @@ export interface FrontendCase {
   worker?: FrontendWorker | null;
   documents?: FrontendDocument[];
   analysis?: CaseAnalysis | null;
+  payment?: CasePayment | null;
 }
 
 // Tipo compativel com a estrutura antiga (para retrocompatibilidade com mock data)
@@ -162,9 +184,62 @@ export interface CaseDetail {
   emailsSentTo?: string[];
 }
 
+export type OrgNotification = {
+  id: string;
+  org_id: string;
+  user_id?: string | null;
+  case_id?: string | null;
+  type: string;
+  title?: string | null;
+  body?: string | null;
+  read_at?: string | null;
+  created_at?: string | null;
+};
+
+export type OrgMetrics = {
+  year_month: string;
+  statusCounts: Record<string, number>;
+  paidCount: number;
+  grossAmount: number;
+};
+
+export type OrgWorker = {
+  id: string;
+  name: string | null;
+  cpf?: string | null;
+  birth_date?: string | null;
+  created_at?: string | null;
+};
+
+export type OrgCompany = {
+  id: string;
+  name: string | null;
+  cnpj?: string | null;
+  created_at?: string | null;
+};
+
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  created_at?: string | null;
+};
+
+export type BillingMonth = {
+  org_id: string;
+  year_month: string;
+  paid_count: number;
+  gross_amount: number;
+  share_percent: number;
+  share_amount: number;
+  status: string;
+  generated_at?: string | null;
+};
+
 function normalizeCaseStatus(rawStatus: unknown): { status: CaseStatus; raw: string | null } {
   if (rawStatus === undefined || rawStatus === null) {
-    return { status: "pending_documents", raw: null };
+    return { status: "awaiting_payment", raw: null };
   }
 
   const rawString = String(rawStatus);
@@ -175,7 +250,7 @@ function normalizeCaseStatus(rawStatus: unknown): { status: CaseStatus; raw: str
     return { status: match, raw: rawString };
   }
 
-  return { status: "pending_documents", raw: rawString };
+  return { status: "awaiting_payment", raw: rawString };
 }
 
 function tryParseJson(value: string) {
@@ -499,6 +574,7 @@ function normalizeCaseResponse(payload: any): FrontendCase {
     documents: normalizeDocuments(
       payload.documents ?? base.documents ?? payload.case_documents ?? []
     ),
+    payment: payload.payment ?? base.payment ?? null,
     analysis: normalizeCaseAnalysis(
       payload.analysis ??
         base.analysis ??
@@ -618,9 +694,13 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   });
 }
 
+function orgPath(orgSlug: string, path: string) {
+  return `/orgs/${orgSlug}${path}`;
+}
+
 // 1. getCases
-export async function getCases(): Promise<FrontendCase[]> {
-  const res = await apiFetch("/cases");
+export async function getCases(orgSlug: string): Promise<FrontendCase[]> {
+  const res = await apiFetch(orgPath(orgSlug, "/cases"));
 
   const raw = await handleJsonResponse(res);
 
@@ -634,13 +714,15 @@ export async function getCases(): Promise<FrontendCase[]> {
 }
 
 // 1b. createCase
-export async function createCase(payload: {
+export async function createCase(
+  orgSlug: string,
+  payload: {
   workerName: string;
   workerCPF: string;
   companyName: string;
   companyCNPJ: string;
 }): Promise<FrontendCase> {
-  const res = await apiFetch("/cases", {
+  const res = await apiFetch(orgPath(orgSlug, "/cases"), {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -652,20 +734,21 @@ export async function createCase(payload: {
 }
 
 // 2. getCaseDetail
-export async function getCaseDetail(id: string): Promise<CaseDetail> {
-  const res = await apiFetch(`/cases/${id}`);
+export async function getCaseDetail(orgSlug: string, id: string): Promise<CaseDetail> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${id}`));
   const data = await handleJsonResponse(res);
   return normalizeCaseDetail(data);
 }
 
 export async function generateCaseAnalysis(
+  orgSlug: string,
   caseId: string,
   file: File
 ): Promise<CaseDetail> {
   const formData = new FormData();
   formData.append("pppFile", file);
 
-  const res = await apiFetch(`/cases/${caseId}/analysis`, {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/analysis`), {
     method: "POST",
     body: formData,
   });
@@ -673,6 +756,120 @@ export async function generateCaseAnalysis(
   const data = await handleJsonResponse(res);
 
   return normalizeCaseDetail(data);
+}
+
+export async function createPaymentLink(
+  orgSlug: string,
+  caseId: string
+): Promise<{ payment_url?: string | null; paymentUrl?: string | null }> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/payment-link`), {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data ?? {};
+}
+
+export async function getNotifications(orgSlug: string, limit = 50): Promise<OrgNotification[]> {
+  const res = await apiFetch(orgPath(orgSlug, `/notifications?limit=${limit}`));
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function markNotificationRead(orgSlug: string, id: string): Promise<OrgNotification> {
+  const res = await apiFetch(orgPath(orgSlug, `/notifications/${id}/read`), {
+    method: "PATCH",
+  });
+  const data = await handleJsonResponse(res);
+  return data as OrgNotification;
+}
+
+export async function getOrgMetrics(orgSlug: string, yearMonth?: string): Promise<OrgMetrics> {
+  const suffix = yearMonth ? `?year_month=${yearMonth}` : "";
+  const res = await apiFetch(orgPath(orgSlug, `/metrics${suffix}`));
+  const data = await handleJsonResponse(res);
+  return data as OrgMetrics;
+}
+
+export async function getWorkers(orgSlug: string): Promise<OrgWorker[]> {
+  const res = await apiFetch(orgPath(orgSlug, "/workers"));
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createWorker(
+  orgSlug: string,
+  payload: { name: string; cpf?: string; birth_date?: string }
+): Promise<OrgWorker> {
+  const res = await apiFetch(orgPath(orgSlug, "/workers"), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(res);
+  return data as OrgWorker;
+}
+
+export async function getCompanies(orgSlug: string): Promise<OrgCompany[]> {
+  const res = await apiFetch(orgPath(orgSlug, "/companies"));
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createCompany(
+  orgSlug: string,
+  payload: { name: string; cnpj?: string }
+): Promise<OrgCompany> {
+  const res = await apiFetch(orgPath(orgSlug, "/companies"), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(res);
+  return data as OrgCompany;
+}
+
+export async function getOrganizations(): Promise<Organization[]> {
+  const res = await apiFetch("/admin/organizations");
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createOrganization(payload: {
+  name: string;
+  slug: string;
+  user_id: string;
+}): Promise<Organization> {
+  const res = await apiFetch("/admin/organizations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(res);
+  return data as Organization;
+}
+
+export async function getAdminPayments(): Promise<any[]> {
+  const res = await apiFetch("/admin/payments");
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getAdminUsage(): Promise<any[]> {
+  const res = await apiFetch("/admin/usage");
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getBillingMonths(yearMonth?: string): Promise<BillingMonth[]> {
+  const suffix = yearMonth ? `?year_month=${yearMonth}` : "";
+  const res = await apiFetch(`/admin/billing-months${suffix}`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function generateBillingMonths(yearMonth: string): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/billing-months/generate?year_month=${yearMonth}`, {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
 }
 
 

@@ -2,15 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
-import { useSubscription } from "@/src/hooks/useSubscription";
+import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 import { Button } from "@/components/Button";
 
 export default function LandingPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { active: hasSubscription } = useSubscription();
+  const { isPlatformAdmin, org } = useOrgAccess();
 
-  const primaryHref = !user ? "/login" : hasSubscription ? "/cases" : "/assinatura";
+  const primaryHref = !user
+    ? "/login"
+    : isPlatformAdmin
+    ? "/admin"
+    : org?.slug
+    ? `/s/${org.slug}/dashboard`
+    : "/login";
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -119,12 +125,12 @@ export default function LandingPage() {
           <div className="bg-white shadow rounded-lg p-6 space-y-4">
             <h3 className="text-xl font-semibold">Pronto para usar</h3>
             <p className="text-gray-600">
-              Acesse com sua conta e use a assinatura ativa para auditar PPPs de forma organizada.
+              Acesse com sua conta e acompanhe os PPPs gerados por caso com pagamento confirmado.
             </p>
             <div className="flex gap-3">
               <Button onClick={() => router.push(primaryHref)}>Começar agora</Button>
-              <Button variant="outline" onClick={() => router.push("/assinatura")}>
-                Ver planos
+              <Button variant="outline" onClick={() => router.push("/login")}>
+                Entrar
               </Button>
             </div>
           </div>
@@ -138,8 +144,8 @@ export default function LandingPage() {
             <button onClick={() => router.push("/login")} className="hover:text-gray-900">
               Entrar
             </button>
-            <button onClick={() => router.push("/assinatura")} className="hover:text-gray-900">
-              Assinar agora
+            <button onClick={() => router.push("/login")} className="hover:text-gray-900">
+              Entrar
             </button>
           </div>
         </div>

@@ -4,16 +4,22 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/lib/authContext";
+import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
 export default function LoginPage() {
   const router = useRouter();
   const { session, loading, signInWithGoogle } = useAuth();
+  const { loading: orgLoading, isPlatformAdmin, org } = useOrgAccess();
 
   useEffect(() => {
-    if (!loading && session) {
-      router.replace("/cases");
+    if (!loading && !orgLoading && session) {
+      if (isPlatformAdmin) {
+        router.replace("/admin");
+      } else if (org?.slug) {
+        router.replace(`/s/${org.slug}/dashboard`);
+      }
     }
-  }, [loading, session, router]);
+  }, [loading, orgLoading, session, isPlatformAdmin, org?.slug, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
