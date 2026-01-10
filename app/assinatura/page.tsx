@@ -25,7 +25,9 @@ export default function SubscriptionPage() {
           <p className="text-sm text-blue-600 font-semibold">Assinatura</p>
           <h1 className="text-3xl font-bold">Ative sua assinatura</h1>
           <p className="text-gray-600">
-            A plataforma está em fase piloto. A ativação é manual e feita por e-mail neste MVP.
+            A plataforma está em fase piloto. A ativação é manual e feita por e-mail neste MVP. 
+            Ideal para trabalhadores que precisam verificar a validade do PPP para atestado profissional, 
+            além de advogados, peritos e empresas.
           </p>
         </div>
 

@@ -33,37 +33,21 @@ export default function LandingPage() {
 
       <main>
         <section className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
-          <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24 grid lg:grid-cols-2 gap-10 items-center">
+          <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
             <div className="space-y-6">
               <p className="text-sm uppercase tracking-wide text-blue-100">Plataforma de Auditoria</p>
               <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight">
                 Auditoria técnica de PPP em minutos, não em dias.
               </h1>
               <p className="text-lg text-blue-100">
-                Ferramenta para advogados, peritos e empresas conferirem PPP com base na IN 128/2022
-                e nas NRs, gerando parecer técnico pronto para conferência humana.
+                Ferramenta para advogados, peritos, empresas e trabalhadores conferirem PPP com base na IN 128/2022
+                e nas NRs, gerando parecer técnico pronto para conferência humana. Ideal para quem precisa de atestado profissional do PPP.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button onClick={() => router.push(primaryHref)}>Começar agora</Button>
                 <Button variant="outline" onClick={() => scrollTo("como-funciona")}>
                   Ver como funciona
                 </Button>
-              </div>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-6 border border-white/20 shadow-lg">
-              <h3 className="text-xl font-semibold mb-3">Exemplo de resultado</h3>
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-red-100">
-                  Conclusão: NÃO CONFORME para aposentadoria especial
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-blue-50">
-                  <li>Ausência de medições recentes de agentes nocivos.</li>
-                  <li>PPP não cita LTCAT ou responsável técnico.</li>
-                  <li>Período com códigos de GFIP incompatíveis.</li>
-                </ul>
-                <p className="text-blue-100 text-xs pt-2">
-                  ⚠ Não foram analisados LTCAT, laudos, medições ou eventos S-2240, se expressamente citados no próprio PPP.
-                </p>
               </div>
             </div>
           </div>
@@ -103,10 +87,11 @@ export default function LandingPage() {
           <div className="max-w-6xl mx-auto px-6 space-y-6">
             <div className="text-center space-y-3">
               <h2 className="text-3xl font-bold">Para quem é</h2>
-              <p className="text-gray-600">A plataforma ajuda equipes técnicas e jurídicas.</p>
+              <p className="text-gray-600">A plataforma ajuda equipes técnicas, jurídicas e trabalhadores que precisam de atestado profissional do PPP.</p>
             </div>
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
+                "Trabalhadores",
                 "Advogados previdenciários",
                 "Escritórios de contabilidade",
                 "Departamentos de RH/SSO",
@@ -128,6 +113,7 @@ export default function LandingPage() {
               <li>Padroniza pareceres técnicos.</li>
               <li>Identifica PPP inválido antes do requerimento ou ação.</li>
               <li>Gera documentação técnica mais robusta.</li>
+              <li>Ajuda trabalhadores a verificar a validade do PPP para atestado profissional.</li>
             </ul>
           </div>
           <div className="bg-white shadow rounded-lg p-6 space-y-4">
