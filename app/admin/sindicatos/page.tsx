@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/Button";
 import {
   createOrganization,
@@ -8,8 +8,24 @@ import {
   Organization,
   createBulkOrgInvites,
   listOrgInvites,
+  revokeOrgInvite,
   OrgInvite,
 } from "@/src/services/api";
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "-";
+  try {
+    return new Date(dateStr).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "-";
+  }
+}
 
 export default function AdminOrganizationsPage() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -24,17 +40,25 @@ export default function AdminOrganizationsPage() {
   const [invites, setInvites] = useState<OrgInvite[]>([]);
   const [newEmails, setNewEmails] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  async function load() {
+  const loadOrgs = useCallback(async () => {
     setLoading(true);
-    const data = await getOrganizations();
-    setOrgs(data);
-    setLoading(false);
-  }
+    try {
+      const data = await getOrganizations();
+      setOrgs(data);
+    } catch (err) {
+      console.error("Erro ao carregar organizações:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    loadOrgs();
+  }, [loadOrgs]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -49,11 +73,11 @@ export default function AdminOrganizationsPage() {
     setCreating(true);
 
     try {
-      // Criar organização com um user_id placeholder (será substituído pelo convite)
+      // Criar organização com um user_id placeholder
       const org = await createOrganization({
         name: form.name.trim(),
         slug: form.slug.trim(),
-        user_id: "00000000-0000-0000-0000-000000000000", // Placeholder - usuário será adicionado via convite
+        user_id: "00000000-0000-0000-0000-000000000000",
       });
 
       // Se tem emails, criar convites
@@ -70,7 +94,7 @@ export default function AdminOrganizationsPage() {
       }
 
       setForm({ name: "", slug: "", emails: "" });
-      await load();
+      await loadOrgs();
     } catch (err) {
       setError("Não foi possível criar organização.");
     } finally {
@@ -80,11 +104,18 @@ export default function AdminOrganizationsPage() {
 
   async function openInviteModal(org: Organization) {
     setSelectedOrg(org);
+    setInvites([]);
+    setNewEmails("");
+    setInviteError(null);
+    setInviteSuccess(null);
     setInviteLoading(true);
+
     try {
       const data = await listOrgInvites(org.id);
       setInvites(data);
-    } catch {
+    } catch (err) {
+      console.error("Erro ao carregar convites:", err);
+      setInviteError("Erro ao carregar convites.");
       setInvites([]);
     } finally {
       setInviteLoading(false);
@@ -99,30 +130,77 @@ export default function AdminOrganizationsPage() {
       .map((e) => e.trim().toLowerCase())
       .filter((e) => e && e.includes("@"));
 
-    if (emailList.length === 0) return;
+    if (emailList.length === 0) {
+      setInviteError("Informe pelo menos um email válido.");
+      return;
+    }
 
     setInviteLoading(true);
+    setInviteError(null);
+    setInviteSuccess(null);
+
     try {
-      await createBulkOrgInvites(selectedOrg.id, emailList);
+      const result = await createBulkOrgInvites(selectedOrg.id, emailList);
+      const created = result.results?.filter((r) => r.status === "created").length ?? 0;
+      const skipped = result.results?.filter((r) => r.status === "skipped").length ?? 0;
+
+      if (created > 0) {
+        setInviteSuccess(`${created} convite(s) criado(s)${skipped > 0 ? `, ${skipped} já existia(m)` : ""}.`);
+      } else if (skipped > 0) {
+        setInviteError(`Todos os ${skipped} email(s) já estavam convidados.`);
+      }
+
       setNewEmails("");
       const data = await listOrgInvites(selectedOrg.id);
       setInvites(data);
-    } catch {
-      // Erro silencioso
+    } catch (err) {
+      console.error("Erro ao enviar convites:", err);
+      setInviteError("Erro ao enviar convites. Verifique se você tem permissão.");
     } finally {
       setInviteLoading(false);
     }
+  }
+
+  async function handleRevokeInvite(inviteId: string) {
+    if (!selectedOrg) return;
+
+    setRevokingId(inviteId);
+    setInviteError(null);
+    setInviteSuccess(null);
+
+    try {
+      await revokeOrgInvite(selectedOrg.id, inviteId);
+      setInviteSuccess("Convite revogado com sucesso.");
+
+      // Recarregar lista
+      const data = await listOrgInvites(selectedOrg.id);
+      setInvites(data);
+    } catch (err) {
+      console.error("Erro ao revogar convite:", err);
+      setInviteError("Erro ao revogar convite.");
+    } finally {
+      setRevokingId(null);
+    }
+  }
+
+  function closeModal() {
+    setSelectedOrg(null);
+    setInvites([]);
+    setNewEmails("");
+    setInviteError(null);
+    setInviteSuccess(null);
   }
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Sindicatos</h2>
 
+      {/* Formulário de criação */}
       <form onSubmit={handleCreate} className="bg-white rounded-lg shadow p-6 space-y-4">
         <h3 className="font-semibold text-gray-800">Criar novo sindicato</h3>
 
-        {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
-        {success && <div className="text-sm text-green-600 bg-green-50 p-2 rounded">{success}</div>}
+        {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded">{error}</div>}
+        {success && <div className="text-sm text-green-600 bg-green-50 p-3 rounded">{success}</div>}
 
         <div className="grid md:grid-cols-2 gap-4">
           <div>
@@ -166,13 +244,17 @@ export default function AdminOrganizationsPage() {
         </Button>
       </form>
 
+      {/* Lista de sindicatos */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b border-gray-200">
           <h3 className="font-semibold text-gray-800">Sindicatos cadastrados</h3>
         </div>
         <div className="p-4">
           {loading ? (
-            <div className="text-gray-600">Carregando...</div>
+            <div className="text-gray-600 flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              Carregando...
+            </div>
           ) : (
             <div className="space-y-2">
               {orgs.map((org) => (
@@ -194,12 +276,13 @@ export default function AdminOrganizationsPage() {
                     >
                       {org.status}
                     </span>
-                    <Button
+                    <button
+                      type="button"
                       onClick={() => openInviteModal(org)}
-                      className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      className="px-3 py-1.5 text-sm font-medium rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
                     >
                       Convites
-                    </Button>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -213,82 +296,154 @@ export default function AdminOrganizationsPage() {
 
       {/* Modal de Convites */}
       {selectedOrg && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">
-                Convites - {selectedOrg.name}
-              </h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-semibold text-gray-900 text-lg">Gerenciar Convites</h3>
+                <p className="text-sm text-gray-500">{selectedOrg.name}</p>
+              </div>
               <button
-                onClick={() => setSelectedOrg(null)}
-                className="text-gray-500 hover:text-gray-700"
+                onClick={closeModal}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
               >
-                ✕
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
-            <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+            {/* Content */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {/* Mensagens de feedback */}
+              {inviteError && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded flex items-start gap-2">
+                  <svg className="w-4 h-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  {inviteError}
+                </div>
+              )}
+              {inviteSuccess && (
+                <div className="text-sm text-green-600 bg-green-50 p-3 rounded flex items-start gap-2">
+                  <svg className="w-4 h-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {inviteSuccess}
+                </div>
+              )}
+
               {/* Adicionar convites */}
-              <div className="space-y-2">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                 <label className="block text-sm font-medium text-gray-700">
-                  Adicionar emails
+                  Enviar novos convites
                 </label>
                 <textarea
                   value={newEmails}
                   onChange={(e) => setNewEmails(e.target.value)}
                   placeholder="email1@exemplo.com, email2@exemplo.com"
-                  rows={2}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  rows={3}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
+                <p className="text-xs text-gray-500">
+                  Separe os emails por vírgula, ponto e vírgula ou quebra de linha.
+                </p>
                 <Button
                   onClick={handleSendInvites}
                   disabled={inviteLoading || !newEmails.trim()}
-                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {inviteLoading ? "Enviando..." : "Enviar convites"}
+                  {inviteLoading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Enviando...
+                    </span>
+                  ) : (
+                    "Enviar convites"
+                  )}
                 </Button>
               </div>
 
               {/* Lista de convites */}
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Convites enviados</h4>
-                {inviteLoading ? (
-                  <div className="text-gray-500 text-sm">Carregando...</div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  Convites ({invites.length})
+                </h4>
+
+                {inviteLoading && invites.length === 0 ? (
+                  <div className="text-gray-500 text-sm flex items-center gap-2 py-4">
+                    <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    Carregando convites...
+                  </div>
                 ) : invites.length === 0 ? (
-                  <div className="text-gray-500 text-sm">Nenhum convite ainda.</div>
+                  <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg">
+                    Nenhum convite enviado ainda.
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {invites.map((invite) => (
-                      <div
-                        key={invite.id}
-                        className="flex items-center justify-between text-sm bg-gray-50 rounded p-2"
-                      >
-                        <span className="text-gray-700">{invite.email}</span>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            invite.status === "pending"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : invite.status === "accepted"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {invite.status === "pending"
-                            ? "Pendente"
-                            : invite.status === "accepted"
-                            ? "Aceito"
-                            : "Revogado"}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Email</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Status</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Criado em</th>
+                          <th className="text-right px-3 py-2 font-medium text-gray-600">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {invites.map((invite) => (
+                          <tr key={invite.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-900">{invite.email}</td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`inline-flex items-center text-xs px-2 py-1 rounded-full font-medium ${
+                                  invite.status === "pending"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : invite.status === "accepted"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-600"
+                                }`}
+                              >
+                                {invite.status === "pending"
+                                  ? "Pendente"
+                                  : invite.status === "accepted"
+                                  ? "Aceito"
+                                  : "Revogado"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-500 text-xs">
+                              {formatDate(invite.created_at)}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {invite.status === "pending" && (
+                                <button
+                                  onClick={() => handleRevokeInvite(invite.id)}
+                                  disabled={revokingId === invite.id}
+                                  className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                >
+                                  {revokingId === invite.id ? "Revogando..." : "Revogar"}
+                                </button>
+                              )}
+                              {invite.status === "accepted" && (
+                                <span className="text-xs text-gray-400">
+                                  Aceito em {formatDate(invite.accepted_at)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-200">
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 shrink-0">
               <Button
-                onClick={() => setSelectedOrg(null)}
+                onClick={closeModal}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700"
               >
                 Fechar
