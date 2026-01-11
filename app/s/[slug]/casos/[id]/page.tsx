@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import {
   getCaseDetail,
   createPaymentLink,
+  devMarkCaseAsPaid,
+  devAttachFakePdf,
   CaseDetail,
   CaseStatus,
   ApiError,
@@ -56,6 +58,11 @@ export default function CaseDetailPage() {
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [creatingLink, setCreatingLink] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [attachingPdf, setAttachingPdf] = useState(false);
+
+  // Detectar ambiente de desenvolvimento
+  const isDev = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   // Memoize fetchCase para usar em useEffect
   const fetchCase = useCallback(async () => {
@@ -105,8 +112,9 @@ export default function CaseDetailPage() {
         return;
       }
       try {
+        const bucket = process.env.NEXT_PUBLIC_SUPABASE_PPP_BUCKET || "PPP";
         const { data } = await supabaseClient.storage
-          .from("ppp-docs")
+          .from(bucket)
           .createSignedUrl(downloadUrl, 3600);
         if (active) {
           setSignedUrl(data?.signedUrl ?? null);
@@ -136,6 +144,46 @@ export default function CaseDetailPage() {
       setCreatingLink(false);
     }
   }, [slug, caseId]);
+
+  // Handler DEV para marcar como pago
+  const handleDevMarkPaid = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      setMarkingPaid(true);
+      setError(null);
+      await devMarkCaseAsPaid(slug, caseId);
+      // Recarrega o caso após marcar como pago
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || "Nao foi possivel marcar como pago.");
+      } else {
+        setError("Nao foi possivel marcar como pago.");
+      }
+    } finally {
+      setMarkingPaid(false);
+    }
+  }, [slug, caseId, fetchCase]);
+
+  // Handler DEV para anexar PDF fake
+  const handleDevAttachPdf = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      setAttachingPdf(true);
+      setError(null);
+      await devAttachFakePdf(slug, caseId);
+      // Recarrega o caso após anexar PDF
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || "Nao foi possivel anexar o PDF.");
+      } else {
+        setError("Nao foi possivel anexar o PDF.");
+      }
+    } finally {
+      setAttachingPdf(false);
+    }
+  }, [slug, caseId, fetchCase]);
 
   // Renderização condicional - APÓS todos os hooks
   if (loading) {
@@ -196,6 +244,22 @@ export default function CaseDetailPage() {
               Abrir link de pagamento
             </a>
           )}
+          
+          {/* Botão DEV para simular pagamento */}
+          {isDev && (
+            <div className="mt-4 pt-4 border-t border-dashed border-orange-300">
+              <p className="text-xs text-orange-600 mb-2">
+                🛠️ Modo desenvolvimento
+              </p>
+              <Button
+                onClick={handleDevMarkPaid}
+                disabled={markingPaid}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                {markingPaid ? "Processando..." : "Marcar como pago (DEV)"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -205,6 +269,22 @@ export default function CaseDetailPage() {
           <p className="text-sm text-gray-600">
             O pagamento foi confirmado. O PDF esta sendo gerado automaticamente.
           </p>
+          
+          {/* Botão DEV para anexar PDF fake */}
+          {isDev && (
+            <div className="mt-4 pt-4 border-t border-dashed border-orange-300">
+              <p className="text-xs text-orange-600 mb-2">
+                🛠️ Modo desenvolvimento
+              </p>
+              <Button
+                onClick={handleDevAttachPdf}
+                disabled={attachingPdf}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                {attachingPdf ? "Anexando..." : "Anexar PDF fake (DEV)"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

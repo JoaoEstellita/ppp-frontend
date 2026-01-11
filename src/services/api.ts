@@ -866,6 +866,54 @@ export async function generateBillingMonths(yearMonth: string): Promise<{ ok: bo
   return data as { ok: boolean };
 }
 
+// ========== DEV ENDPOINTS (apenas para ambiente de desenvolvimento) ==========
+
+export type DevMarkPaidResponse = {
+  ok: boolean;
+  message: string;
+  case_id: string;
+  status: CaseStatus;
+  amount?: number;
+  currency?: string;
+  idempotent?: boolean;
+};
+
+export type DevAttachPdfResponse = {
+  ok: boolean;
+  message: string;
+  case_id: string;
+  status: CaseStatus;
+  file_path: string;
+};
+
+/**
+ * Simula pagamento aprovado para um caso (apenas em ambiente DEV)
+ */
+export async function devMarkCaseAsPaid(
+  orgSlug: string,
+  caseId: string
+): Promise<DevMarkPaidResponse> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/dev/mark-paid`), {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as DevMarkPaidResponse;
+}
+
+/**
+ * Anexa um PDF fake para testar download (apenas em ambiente DEV)
+ */
+export async function devAttachFakePdf(
+  orgSlug: string,
+  caseId: string
+): Promise<DevAttachPdfResponse> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/dev/attach-pdf`), {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as DevAttachPdfResponse;
+}
+
 
 
 
