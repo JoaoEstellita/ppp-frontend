@@ -30,10 +30,7 @@ export type CaseStatus =
   | "paid_processing"
   | "done"
   | "pending_info"
-  | "error"
-  | "pending_documents"
-  | "processing"
-  | "analyzed";
+  | "error";
 
 const KNOWN_CASE_STATUSES: CaseStatus[] = [
   "awaiting_payment",
@@ -41,9 +38,6 @@ const KNOWN_CASE_STATUSES: CaseStatus[] = [
   "done",
   "pending_info",
   "error",
-  "pending_documents",
-  "processing",
-  "analyzed",
 ];
 
 export class ApiError extends Error {

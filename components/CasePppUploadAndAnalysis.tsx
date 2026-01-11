@@ -6,11 +6,12 @@ import { generateCaseAnalysis } from "@/src/services/api";
 import { Button } from "@/components/Button";
 
 interface Props {
+  orgSlug: string;
   caseId: string;
   onCompleted?: () => Promise<void> | void;
 }
 
-export function CasePppUploadAndAnalysis({ caseId, onCompleted }: Props) {
+export function CasePppUploadAndAnalysis({ orgSlug, caseId, onCompleted }: Props) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,16 +22,17 @@ export function CasePppUploadAndAnalysis({ caseId, onCompleted }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!file) return;
+    if (!file || !orgSlug) return;
     try {
       setLoading(true);
-      await generateCaseAnalysis(caseId, file);
+      await generateCaseAnalysis(orgSlug, caseId, file);
       await onCompleted?.();
       router.refresh();
       alert("Documento recebido. A analise automatica foi iniciada.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err?.message ?? "Erro ao enviar PPP para analise.");
+      const message = err instanceof Error ? err.message : "Erro ao enviar PPP para analise.";
+      alert(message);
     } finally {
       setLoading(false);
       setFile(null);

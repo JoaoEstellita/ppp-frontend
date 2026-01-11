@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { getWorkers, createWorker, OrgWorker } from "@/src/services/api";
 import { Button } from "@/components/Button";
@@ -19,7 +19,7 @@ export default function WorkersPage() {
   const [form, setForm] = useState({ name: "", cpf: "", birth_date: "" });
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!slug) return;
     setLoading(true);
     try {
@@ -28,11 +28,11 @@ export default function WorkersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [slug]);
 
   useEffect(() => {
     load();
-  }, [slug]);
+  }, [load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +49,7 @@ export default function WorkersPage() {
       });
       setForm({ name: "", cpf: "", birth_date: "" });
       await load();
-    } catch (err) {
+    } catch {
       setError("Nao foi possivel criar trabalhador.");
     }
   }
@@ -109,4 +109,3 @@ export default function WorkersPage() {
     </div>
   );
 }
-
