@@ -1058,7 +1058,7 @@ export async function requestSupport(
 /**
  * Admin lista casos com erro/suporte
  */
-export async function adminListSupportCases(filter?: "open" | "all"): Promise<SupportCaseItem[]> {
+export async function adminListSupportCases(filter?: "open" | "all" | "error" | "processing"): Promise<SupportCaseItem[]> {
   const suffix = filter ? `?status=${filter}` : "";
   const res = await apiFetch(`/admin/support/cases${suffix}`);
   const data = await handleJsonResponse(res);
