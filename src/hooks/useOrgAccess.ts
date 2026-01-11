@@ -2,16 +2,51 @@ import { useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/authContext";
 
+type Org = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+};
+
 export type OrgAccess = {
   loading: boolean;
   isPlatformAdmin: boolean;
-  org: {
-    id: string;
-    name: string;
-    slug: string;
-    status: string;
-  } | null;
+  org: Org | null;
 };
+
+/**
+ * Normaliza o resultado do join com organizations.
+ * Supabase pode retornar como array ou objeto dependendo do relacionamento.
+ */
+function normalizeOrg(organizations: unknown): Org | null {
+  if (!organizations) return null;
+
+  // Se for array, pega o primeiro elemento
+  if (Array.isArray(organizations)) {
+    const first = organizations[0];
+    if (!first) return null;
+    return {
+      id: String(first.id ?? ""),
+      name: String(first.name ?? ""),
+      slug: String(first.slug ?? ""),
+      status: String(first.status ?? ""),
+    };
+  }
+
+  // Se for objeto, usa diretamente
+  if (typeof organizations === "object") {
+    const obj = organizations as Record<string, unknown>;
+    return {
+      id: String(obj.id ?? ""),
+      name: String(obj.name ?? ""),
+      slug: String(obj.slug ?? ""),
+      status: String(obj.status ?? ""),
+    };
+  }
+
+  return null;
+}
 
 export function useOrgAccess(): OrgAccess {
   const { user } = useAuth();
@@ -50,10 +85,12 @@ export function useOrgAccess(): OrgAccess {
 
       if (!active) return;
 
+      const org = normalizeOrg(member?.organizations);
+
       setState({
         loading: false,
         isPlatformAdmin: false,
-        org: (member?.organizations as OrgAccess["org"]) ?? null,
+        org,
       });
     }
 
@@ -66,4 +103,3 @@ export function useOrgAccess(): OrgAccess {
 
   return state;
 }
-
