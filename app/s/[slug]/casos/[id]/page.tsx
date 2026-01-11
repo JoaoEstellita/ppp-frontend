@@ -9,8 +9,12 @@ import {
   devAttachFakePdf,
   retryCase,
   requestSupport,
+  uploadPppInput,
+  listCaseDocuments,
+  getDocumentDownloadUrl,
   CaseDetail,
   CaseStatus,
+  CaseDocument,
   ApiError,
 } from "@/src/services/api";
 import { Button } from "@/components/Button";
@@ -20,6 +24,8 @@ import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
+  awaiting_pdf: "Aguardando PDF",
+  processing: "Processando",
   paid_processing: "Pago / Processando",
   done: "Concluido",
   pending_info: "Pendencias",
@@ -30,9 +36,11 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
   switch (status) {
     case "done":
       return "success";
+    case "processing":
     case "paid_processing":
       return "info";
     case "awaiting_payment":
+    case "awaiting_pdf":
       return "warning";
     case "pending_info":
       return "warning";
@@ -41,6 +49,36 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
     default:
       return "default";
   }
+}
+
+// Componente para botão de download de PDF
+function DownloadPdfButton({ slug, caseId, docId }: { slug: string; caseId: string; docId: string }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!docId) return;
+    try {
+      setDownloading(true);
+      const { signedUrl } = await getDocumentDownloadUrl(slug, caseId, docId);
+      if (signedUrl) {
+        window.open(signedUrl, "_blank");
+      }
+    } catch {
+      // Silenciar erro
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={downloading || !docId}
+      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50"
+    >
+      {downloading ? "..." : "Baixar"}
+    </button>
+  );
 }
 
 export default function CaseDetailPage() {
@@ -69,6 +107,11 @@ export default function CaseDetailPage() {
   const [supportSent, setSupportSent] = useState(false);
   const [showSupportForm, setShowSupportForm] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  
+  // Estados para upload de PDF
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [caseDocuments, setCaseDocuments] = useState<CaseDocument[]>([]);
 
   // Verificar acesso do usuário (platform_admin)
   const { isPlatformAdmin } = useOrgAccess();
@@ -239,6 +282,49 @@ export default function CaseDetailPage() {
     }
   }, [slug, caseId, supportMessage]);
 
+  // Handler para upload de PDF
+  const handleUploadPdf = useCallback(async () => {
+    if (!slug || !caseId || !selectedFile) return;
+    try {
+      setUploadingPdf(true);
+      setActionMessage(null);
+      await uploadPppInput(slug, caseId, selectedFile);
+      setActionMessage({ type: "success", text: "PDF enviado com sucesso! Processamento iniciado." });
+      setSelectedFile(null);
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar o PDF." });
+      } else {
+        setActionMessage({ type: "error", text: "Não foi possível enviar o PDF." });
+      }
+    } finally {
+      setUploadingPdf(false);
+    }
+  }, [slug, caseId, selectedFile, fetchCase]);
+
+  // Carregar documentos do caso
+  const fetchDocuments = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      const docs = await listCaseDocuments(slug, caseId);
+      setCaseDocuments(docs);
+    } catch {
+      // Silenciar erro - não é crítico
+    }
+  }, [slug, caseId]);
+
+  useEffect(() => {
+    if (caseDetail) {
+      fetchDocuments();
+    }
+  }, [caseDetail, fetchDocuments]);
+
+  // Verificar se tem documento PPP input
+  const hasPppInput = useMemo(() => {
+    return caseDocuments.some(doc => doc.document_type === "ppp_input");
+  }, [caseDocuments]);
+
   // Renderização condicional - APÓS todos os hooks
   if (loading) {
     return <div className="text-gray-600">Carregando caso...</div>;
@@ -280,7 +366,7 @@ export default function CaseDetailPage() {
       </div>
 
       {status === "awaiting_payment" && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-3">
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Pagamento</h3>
           <p className="text-sm text-gray-600">
             Gere o link do Mercado Pago para liberar o processamento do PPP.
@@ -317,12 +403,129 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {status === "paid_processing" && (
+      {/* Upload de PDF - Disponível em awaiting_payment e awaiting_pdf */}
+      {(status === "awaiting_payment" || status === "awaiting_pdf") && (
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+              status === "awaiting_pdf" ? "bg-blue-100" : "bg-gray-100"
+            }`}>
+              <svg className={`w-5 h-5 ${status === "awaiting_pdf" ? "text-blue-600" : "text-gray-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {hasPppInput ? "PDF do PPP anexado" : "Enviar PDF do PPP"}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {status === "awaiting_payment" 
+                  ? "Você pode anexar o PDF agora. O processamento só começa após a confirmação do pagamento."
+                  : "O pagamento foi confirmado. Envie o PDF do PPP para iniciar o processamento."
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Mensagem de feedback */}
+          {actionMessage && (
+            <div className={`p-3 rounded text-sm ${
+              actionMessage.type === "success"
+                ? "bg-green-50 text-green-700"
+                : "bg-red-50 text-red-700"
+            }`}>
+              {actionMessage.text}
+            </div>
+          )}
+
+          {/* Mostrar PDF anexado */}
+          {hasPppInput && (
+            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium text-green-800">PDF anexado com sucesso</p>
+                <p className="text-sm text-green-600">
+                  {caseDocuments.find(d => d.document_type === "ppp_input")?.original_name || "ppp_input.pdf"}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <DownloadPdfButton 
+                  slug={slug} 
+                  caseId={caseId} 
+                  docId={caseDocuments.find(d => d.document_type === "ppp_input")?.id || ""}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Área de upload (sempre visível para permitir substituição) */}
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="hidden"
+              id="pdf-upload"
+            />
+            <label
+              htmlFor="pdf-upload"
+              className="cursor-pointer inline-flex flex-col items-center"
+            >
+              <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-sm text-gray-600">
+                {selectedFile ? selectedFile.name : (hasPppInput ? "Clique para substituir o PDF" : "Clique para selecionar o PDF")}
+              </span>
+              <span className="text-xs text-gray-400 mt-1">Apenas arquivos PDF</span>
+            </label>
+          </div>
+
+          {selectedFile && (
+            <div className="flex gap-3">
+              <Button
+                onClick={handleUploadPdf}
+                disabled={uploadingPdf}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {uploadingPdf ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Enviando...
+                  </span>
+                ) : (
+                  hasPppInput ? "Substituir PDF" : "Enviar PDF"
+                )}
+              </Button>
+              <Button
+                onClick={() => setSelectedFile(null)}
+                disabled={uploadingPdf}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                Cancelar
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Removido bloco duplicado de awaiting_pdf - agora unificado com awaiting_payment */}
+
+      {(status === "processing" || status === "paid_processing") && (
         <div className="bg-white rounded-lg shadow p-6 space-y-2">
-          <h3 className="text-lg font-semibold text-gray-900">PPP em processamento</h3>
-          <p className="text-sm text-gray-600">
-            O pagamento foi confirmado. O PDF esta sendo gerado automaticamente.
-          </p>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+              <span className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">PPP em processamento</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                O PDF está sendo processado. Aguarde a conclusão.
+              </p>
+            </div>
+          </div>
           
           {/* Botão DEV para anexar PDF fake (somente platform_admin + DEV mode) */}
           {showDevTools && (
@@ -371,7 +574,7 @@ export default function CaseDetailPage() {
             <div>
               <h3 className="text-lg font-semibold text-red-800">Erro no processamento</h3>
               <p className="text-sm text-red-600 mt-1">
-                Ocorreu um erro ao processar o PPP. Você pode tentar novamente ou solicitar ajuda do suporte.
+                Ocorreu um erro ao processar o PPP. {hasPppInput ? "Você pode tentar novamente ou solicitar ajuda do suporte." : "Envie o PDF do PPP para tentar novamente."}
               </p>
             </div>
           </div>
@@ -387,22 +590,66 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          {/* Botões de ação */}
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleRetry}
-              disabled={retrying || supportSent}
-              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-            >
-              {retrying ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Reprocessando...
+          {/* Se não tem PDF input, mostrar área de upload */}
+          {!hasPppInput && (
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="hidden"
+                id="pdf-upload-error"
+              />
+              <label
+                htmlFor="pdf-upload-error"
+                className="cursor-pointer inline-flex flex-col items-center"
+              >
+                <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-sm text-gray-600">
+                  {selectedFile ? selectedFile.name : "Clique para selecionar o PDF"}
                 </span>
-              ) : (
-                "Tentar novamente"
+              </label>
+              {selectedFile && (
+                <div className="mt-4 flex justify-center gap-3">
+                  <Button
+                    onClick={handleUploadPdf}
+                    disabled={uploadingPdf}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {uploadingPdf ? "Enviando..." : "Enviar PDF"}
+                  </Button>
+                  <Button
+                    onClick={() => setSelectedFile(null)}
+                    disabled={uploadingPdf}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               )}
-            </Button>
+            </div>
+          )}
+
+          {/* Botões de ação - só mostra retry se tem PDF input */}
+          <div className="flex flex-wrap gap-3">
+            {hasPppInput && (
+              <Button
+                onClick={handleRetry}
+                disabled={retrying || supportSent}
+                className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+              >
+                {retrying ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Reprocessando...
+                  </span>
+                ) : (
+                  "Tentar novamente"
+                )}
+              </Button>
+            )}
 
             {!supportSent && !showSupportForm && (
               <Button

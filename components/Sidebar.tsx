@@ -22,6 +22,7 @@ export function Sidebar() {
 
   const adminLinks = [
     { href: "/admin/sindicatos", label: "Sindicatos" },
+    { href: "/admin/casos", label: "Casos" },
     { href: "/admin/suporte", label: "Suporte" },
     { href: "/admin/pagamentos", label: "Pagamentos" },
     { href: "/admin/uso", label: "Uso" },

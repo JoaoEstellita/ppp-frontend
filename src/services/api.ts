@@ -27,6 +27,8 @@ export const API_BASE_URL: string =
 
 export type CaseStatus =
   | "awaiting_payment"
+  | "awaiting_pdf"
+  | "processing"
   | "paid_processing"
   | "done"
   | "pending_info"
@@ -34,6 +36,8 @@ export type CaseStatus =
 
 const KNOWN_CASE_STATUSES: CaseStatus[] = [
   "awaiting_payment",
+  "awaiting_pdf",
+  "processing",
   "paid_processing",
   "done",
   "pending_info",
@@ -1081,6 +1085,153 @@ export async function adminResolveSupport(requestId: string): Promise<{ ok: bool
   });
   const data = await handleJsonResponse(res);
   return data as { ok: boolean; message: string };
+}
+
+// ========== DOCUMENTOS ==========
+
+export type CaseDocument = {
+  id: string;
+  case_id?: string;
+  document_type: string;
+  original_name: string | null;
+  mime_type: string | null;
+  storage_path: string | null;
+  file_url: string | null;
+  created_at: string;
+};
+
+export type UploadPppInputResponse = {
+  ok: boolean;
+  documentId: string;
+  status: CaseStatus;
+  message: string;
+};
+
+export type DownloadResponse = {
+  signedUrl: string;
+  fileName: string;
+  expiresIn: number;
+};
+
+/**
+ * Upload do PDF do PPP (sindicato)
+ */
+export async function uploadPppInput(
+  orgSlug: string,
+  caseId: string,
+  file: File
+): Promise<UploadPppInputResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/documents/ppp-input`), {
+    method: "POST",
+    body: formData,
+  });
+  const data = await handleJsonResponse(res);
+  return data as UploadPppInputResponse;
+}
+
+/**
+ * Listar documentos de um caso
+ */
+export async function listCaseDocuments(
+  orgSlug: string,
+  caseId: string
+): Promise<CaseDocument[]> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/documents`));
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Obter signed URL para download de documento
+ */
+export async function getDocumentDownloadUrl(
+  orgSlug: string,
+  caseId: string,
+  docId: string
+): Promise<DownloadResponse> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/documents/${docId}/download`));
+  const data = await handleJsonResponse(res);
+  return data as DownloadResponse;
+}
+
+// ========== ADMIN CASES ==========
+
+export type AdminCaseItem = {
+  id: string;
+  org_id: string;
+  org_name: string | null;
+  org_slug: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string | null;
+  retry_count: number;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  last_error_step: string | null;
+  last_error_at: string | null;
+  worker_name: string | null;
+  worker_cpf: string | null;
+  company_name: string | null;
+  company_cnpj: string | null;
+};
+
+export type AdminCaseDetail = {
+  case: {
+    id: string;
+    org_id: string;
+    org_name: string | null;
+    org_slug: string | null;
+    status: string;
+    created_at: string;
+    updated_at: string | null;
+    user_id: string;
+    retry_count: number;
+    last_error_code: string | null;
+    last_error_message: string | null;
+    last_error_step: string | null;
+    last_error_at: string | null;
+  };
+  worker: { id: string; name: string | null; cpf: string | null; birth_date?: string } | null;
+  company: { id: string; name: string | null; cnpj: string | null } | null;
+  documents: CaseDocument[];
+  analysis: { id: string; final_classification: string | null; created_at: string } | null;
+  payment: { id: string; status: string; amount: number | null; paid_at: string | null } | null;
+  supportRequest: { id: string; status: string; message: string | null; created_at: string; resolved_at: string | null } | null;
+  workflowLogs: { id: string; step: string; status: string; message: string | null; created_at: string }[];
+};
+
+/**
+ * Admin lista todos os casos
+ */
+export async function adminListCases(status?: string): Promise<AdminCaseItem[]> {
+  const suffix = status && status !== "all" ? `?status=${status}` : "";
+  const res = await apiFetch(`/admin/cases${suffix}`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Admin obtém detalhes de um caso
+ */
+export async function adminGetCase(caseId: string): Promise<AdminCaseDetail> {
+  const res = await apiFetch(`/admin/cases/${caseId}`);
+  const data = await handleJsonResponse(res);
+  return data as AdminCaseDetail;
+}
+
+/**
+ * Admin download de documento
+ */
+export async function adminGetDocumentDownloadUrl(
+  caseId: string,
+  docId: string
+): Promise<DownloadResponse> {
+  const res = await apiFetch(`/admin/cases/${caseId}/documents/${docId}/download`);
+  const data = await handleJsonResponse(res);
+  return data as DownloadResponse;
 }
 
 

@@ -28,7 +28,7 @@ function formatDate(dateStr: string | null | undefined): string {
 export default function AdminSupportPage() {
   const [cases, setCases] = useState<SupportCaseItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "open">("all");
+  const [filter, setFilter] = useState<"all" | "open" | "error" | "processing">("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -54,7 +54,10 @@ export default function AdminSupportPage() {
     setMessage(null);
     try {
       const result = await adminRetryCase(caseId);
-      setMessage({ type: "success", text: result.message });
+      setMessage({ 
+        type: "success", 
+        text: `${result.message} O caso foi movido para status "processing" e pode sair desta lista.`
+      });
       await loadCases();
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao reprocessar." });
@@ -84,11 +87,13 @@ export default function AdminSupportPage() {
         <div className="flex items-center gap-2">
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as "all" | "open")}
+            onChange={(e) => setFilter(e.target.value as "all" | "open" | "error" | "processing")}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           >
             <option value="all">Todos com erro</option>
+            <option value="error">Somente status erro</option>
             <option value="open">Com solicitação aberta</option>
+            <option value="processing">Em processamento</option>
           </select>
           <Button
             onClick={loadCases}
@@ -144,7 +149,7 @@ export default function AdminSupportPage() {
                   <tr key={item.case_id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/s/${item.org_slug}/casos/${item.case_id}`}
+                        href={`/admin/casos/${item.case_id}`}
                         className="text-blue-600 hover:underline font-medium"
                       >
                         {item.case_id.slice(0, 8)}...

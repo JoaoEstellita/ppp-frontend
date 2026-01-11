@@ -46,13 +46,14 @@ export default function NewCasePage() {
 
     try {
       setLoading(true);
-      await createCase(slug, {
+      const createdCase = await createCase(slug, {
         workerName: formData.workerName.trim(),
         workerCPF: formData.workerCPF.trim(),
         companyName: formData.companyName.trim(),
         companyCNPJ: formData.companyCNPJ.trim(),
       });
-      router.push(`/s/${slug}/casos`);
+      // Redirecionar para a página de detalhes do caso criado
+      router.push(`/s/${slug}/casos/${createdCase.id}`);
     } catch (err) {
       console.error(err);
       setError("Nao foi possivel criar o caso.");

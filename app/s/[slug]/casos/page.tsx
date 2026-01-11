@@ -10,6 +10,8 @@ import { Badge } from "@/components/Badge";
 
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
+  awaiting_pdf: "Aguardando PDF",
+  processing: "Processando",
   paid_processing: "Pago / Processando",
   done: "Concluido",
   pending_info: "Pendencias",
@@ -20,9 +22,11 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
   switch (status) {
     case "done":
       return "success";
+    case "processing":
     case "paid_processing":
       return "info";
     case "awaiting_payment":
+    case "awaiting_pdf":
       return "warning";
     case "pending_info":
       return "warning";
@@ -100,14 +104,21 @@ export default function OrgCasesPage() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <Table headers={["ID", "Trabalhador", "Empresa", "Status", "Data de criacao"]}>
             {cases.map((caseItem) => (
-              <tr key={caseItem.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <Link
-                    href={`/s/${slug}/casos/${caseItem.id}`}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    {caseItem.id}
-                  </Link>
+              <tr 
+                key={caseItem.id} 
+                className="hover:bg-blue-50 cursor-pointer transition-colors"
+                onClick={() => router.push(`/s/${slug}/casos/${caseItem.id}`)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/s/${slug}/casos/${caseItem.id}`);
+                  }
+                }}
+                role="link"
+              >
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                  {caseItem.id.slice(0, 8)}...
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {caseItem.worker?.name || "-"}
