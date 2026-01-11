@@ -914,6 +914,78 @@ export async function devAttachFakePdf(
   return data as DevAttachPdfResponse;
 }
 
+// ========== AUTH / MEMBERSHIP ==========
+
+export type SyncMembershipResponse = {
+  ok: boolean;
+  status: "already_member" | "platform_admin" | "no_invite" | "invite_accepted";
+  org_slug: string | null;
+};
+
+/**
+ * Sincroniza membership do usuário - aceita convite pendente se existir
+ */
+export async function syncMembership(): Promise<SyncMembershipResponse> {
+  const res = await apiFetch("/auth/sync-membership", {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as SyncMembershipResponse;
+}
+
+// ========== ADMIN INVITES ==========
+
+export type OrgInvite = {
+  id: string;
+  org_id: string;
+  email: string;
+  role: string;
+  status: "pending" | "accepted" | "revoked";
+  invited_by: string | null;
+  created_at: string;
+  accepted_at: string | null;
+};
+
+export async function createOrgInvite(
+  orgId: string,
+  email: string,
+  role: string = "org_admin"
+): Promise<OrgInvite> {
+  const res = await apiFetch(`/admin/orgs/${orgId}/invites`, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as OrgInvite;
+}
+
+export async function createBulkOrgInvites(
+  orgId: string,
+  emails: string[],
+  role: string = "org_admin"
+): Promise<{ ok: boolean; results: Array<{ email: string; status: string; invite_id?: string; error?: string }> }> {
+  const res = await apiFetch(`/admin/orgs/${orgId}/invites/bulk`, {
+    method: "POST",
+    body: JSON.stringify({ emails, role }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; results: Array<{ email: string; status: string; invite_id?: string; error?: string }> };
+}
+
+export async function listOrgInvites(orgId: string): Promise<OrgInvite[]> {
+  const res = await apiFetch(`/admin/orgs/${orgId}/invites`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function revokeOrgInvite(orgId: string, inviteId: string): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/orgs/${orgId}/invites/${inviteId}`, {
+    method: "DELETE",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
+}
+
 
 
 

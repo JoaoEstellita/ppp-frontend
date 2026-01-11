@@ -1,76 +1,93 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseClient } from "@/lib/supabaseClient";
-
-/**
- * Extrai o slug da organização do resultado do Supabase.
- * O join pode retornar array ou objeto.
- */
-function extractOrgSlug(organizations: unknown): string | null {
-  if (!organizations) return null;
-
-  // Se for array, pega o primeiro elemento
-  if (Array.isArray(organizations)) {
-    const first = organizations[0];
-    return first?.slug ? String(first.slug) : null;
-  }
-
-  // Se for objeto, usa diretamente
-  if (typeof organizations === "object") {
-    const obj = organizations as Record<string, unknown>;
-    return obj.slug ? String(obj.slug) : null;
-  }
-
-  return null;
-}
+import { syncMembership } from "@/src/services/api";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const [status, setStatus] = useState("Concluindo autenticação...");
 
   useEffect(() => {
     const handleCallback = async () => {
-      const { data } = await supabaseClient.auth.getSession();
-      const user = data.session?.user;
+      try {
+        // Aguarda a sessão ser estabelecida
+        const { data } = await supabaseClient.auth.getSession();
+        const user = data.session?.user;
 
-      if (!user) {
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+
+        setStatus("Verificando permissões...");
+
+        // Tenta sincronizar membership (aceitar convite se existir)
+        try {
+          const syncResult = await syncMembership();
+
+          if (syncResult.status === "platform_admin") {
+            router.replace("/admin");
+            return;
+          }
+
+          if (syncResult.status === "already_member" || syncResult.status === "invite_accepted") {
+            if (syncResult.org_slug) {
+              router.replace(`/s/${syncResult.org_slug}/dashboard`);
+              return;
+            }
+          }
+
+          // no_invite: usuário não tem convite nem membership
+          router.replace("/access-pending");
+        } catch (syncError) {
+          console.error("Erro ao sincronizar membership:", syncError);
+          
+          // Fallback: verificar diretamente no Supabase
+          const { data: admin } = await supabaseClient
+            .from("platform_admins")
+            .select("user_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (admin) {
+            router.replace("/admin");
+            return;
+          }
+
+          const { data: member } = await supabaseClient
+            .from("org_members")
+            .select("organizations ( slug )")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          const orgs = member?.organizations;
+          const slug = Array.isArray(orgs) ? orgs[0]?.slug : (orgs as any)?.slug;
+          
+          if (slug) {
+            router.replace(`/s/${slug}/dashboard`);
+            return;
+          }
+
+          // Sem acesso
+          router.replace("/access-pending");
+        }
+      } catch (error) {
+        console.error("Erro no callback de auth:", error);
         router.replace("/login");
-        return;
       }
-
-      const { data: admin } = await supabaseClient
-        .from("platform_admins")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (admin) {
-        router.replace("/admin");
-        return;
-      }
-
-      const { data: member } = await supabaseClient
-        .from("org_members")
-        .select("organizations ( slug )")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const slug = extractOrgSlug(member?.organizations);
-      if (slug) {
-        router.replace(`/s/${slug}/dashboard`);
-        return;
-      }
-
-      router.replace("/login");
     };
 
     handleCallback();
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
-      Concluindo autenticacao...
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+      <div className="bg-white rounded-2xl shadow-xl p-8 text-center space-y-4">
+        <div className="w-12 h-12 mx-auto border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-600">{status}</p>
+      </div>
     </div>
   );
 }

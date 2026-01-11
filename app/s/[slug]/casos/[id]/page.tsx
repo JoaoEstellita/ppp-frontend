@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import { supabaseClient } from "@/lib/supabaseClient";
+import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
@@ -61,8 +62,12 @@ export default function CaseDetailPage() {
   const [markingPaid, setMarkingPaid] = useState(false);
   const [attachingPdf, setAttachingPdf] = useState(false);
 
-  // Detectar ambiente de desenvolvimento
-  const isDev = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
+  // Verificar acesso do usuário (platform_admin)
+  const { isPlatformAdmin } = useOrgAccess();
+
+  // Detectar ambiente de desenvolvimento + verificar se é platform_admin
+  const isDevModeEnabled = process.env.NEXT_PUBLIC_DEV_MODE === "true";
+  const showDevTools = isPlatformAdmin && isDevModeEnabled;
 
   // Memoize fetchCase para usar em useEffect
   const fetchCase = useCallback(async () => {
@@ -245,11 +250,11 @@ export default function CaseDetailPage() {
             </a>
           )}
           
-          {/* Botão DEV para simular pagamento */}
-          {isDev && (
+          {/* Botão DEV para simular pagamento (somente platform_admin + DEV mode) */}
+          {showDevTools && (
             <div className="mt-4 pt-4 border-t border-dashed border-orange-300">
               <p className="text-xs text-orange-600 mb-2">
-                🛠️ Modo desenvolvimento
+                🛠️ Modo desenvolvimento (Admin)
               </p>
               <Button
                 onClick={handleDevMarkPaid}
@@ -270,11 +275,11 @@ export default function CaseDetailPage() {
             O pagamento foi confirmado. O PDF esta sendo gerado automaticamente.
           </p>
           
-          {/* Botão DEV para anexar PDF fake */}
-          {isDev && (
+          {/* Botão DEV para anexar PDF fake (somente platform_admin + DEV mode) */}
+          {showDevTools && (
             <div className="mt-4 pt-4 border-t border-dashed border-orange-300">
               <p className="text-xs text-orange-600 mb-2">
-                🛠️ Modo desenvolvimento
+                🛠️ Modo desenvolvimento (Admin)
               </p>
               <Button
                 onClick={handleDevAttachPdf}
