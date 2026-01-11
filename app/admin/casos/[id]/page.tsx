@@ -113,11 +113,11 @@ export default function AdminCaseDetailPage() {
   };
 
   const handleDevMarkPaid = async () => {
-    if (!caseDetail) return;
+    if (!caseDetail || !caseDetail.case.org_slug) return;
     setActionLoading("mark-paid");
     setMessage(null);
     try {
-      const result = await devMarkCaseAsPaid(caseDetail.case.org_slug, caseId);
+      const result = await devMarkCaseAsPaid(caseDetail.case.org_slug as string, caseId);
       setMessage({ type: "success", text: result.message || "Caso marcado como pago com sucesso!" });
       await loadCase();
     } catch (err) {
