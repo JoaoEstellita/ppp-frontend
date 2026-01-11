@@ -11,6 +11,9 @@ import {
   adminGetDocumentDownloadUrl,
   AdminCaseDetail,
   devMarkCaseAsPaid,
+  adminResetAwaitingPdf,
+  adminListCaseEvents,
+  CaseEvent,
   ApiError,
 } from "@/src/services/api";
 
@@ -66,6 +69,17 @@ export default function AdminCaseDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [caseEvents, setCaseEvents] = useState<CaseEvent[]>([]);
+
+  const loadCaseEvents = useCallback(async () => {
+    if (!caseId) return;
+    try {
+      const events = await adminListCaseEvents(caseId, 30);
+      setCaseEvents(events);
+    } catch {
+      // Silenciar erro - não é crítico
+    }
+  }, [caseId]);
 
   const loadCase = useCallback(async () => {
     if (!caseId) return;
@@ -83,7 +97,8 @@ export default function AdminCaseDetailPage() {
 
   useEffect(() => {
     loadCase();
-  }, [loadCase]);
+    loadCaseEvents();
+  }, [loadCase, loadCaseEvents]);
 
   const handleRetry = async () => {
     setActionLoading("retry");
@@ -118,13 +133,33 @@ export default function AdminCaseDetailPage() {
     setMessage(null);
     try {
       const result = await devMarkCaseAsPaid(caseDetail.case.org_slug as string, caseId);
-      setMessage({ type: "success", text: result.message || "Caso marcado como pago com sucesso!" });
+      setMessage({ type: "success", text: result.message || "Fluxo destravado com sucesso!" });
       await loadCase();
+      await loadCaseEvents();
     } catch (err) {
       if (err instanceof ApiError) {
-        setMessage({ type: "error", text: err.message || "Erro ao marcar como pago." });
+        setMessage({ type: "error", text: err.message || "Erro ao destravar fluxo." });
       } else {
-        setMessage({ type: "error", text: "Erro ao marcar como pago." });
+        setMessage({ type: "error", text: "Erro ao destravar fluxo." });
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleResetAwaitingPdf = async () => {
+    setActionLoading("reset-pdf");
+    setMessage(null);
+    try {
+      const result = await adminResetAwaitingPdf(caseId);
+      setMessage({ type: "success", text: result.message });
+      await loadCase();
+      await loadCaseEvents();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setMessage({ type: "error", text: err.message || "Erro ao resetar." });
+      } else {
+        setMessage({ type: "error", text: "Erro ao resetar." });
       }
     } finally {
       setActionLoading(null);
@@ -173,17 +208,9 @@ export default function AdminCaseDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant={getStatusBadgeVariant(caseData.status)}>
-            {STATUS_LABELS[caseData.status] ?? caseData.status}
-          </Badge>
-          <Link
-            href={`/s/${caseData.org_slug}/casos/${caseData.id}`}
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            Ver como sindicato →
-          </Link>
-        </div>
+        <Badge variant={getStatusBadgeVariant(caseData.status)}>
+          {STATUS_LABELS[caseData.status] ?? caseData.status}
+        </Badge>
       </div>
 
       {/* Mensagem de feedback */}
@@ -261,8 +288,8 @@ export default function AdminCaseDetailPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-sm font-semibold text-gray-600 mb-4">Ações Admin</h3>
         <div className="flex flex-wrap gap-3">
-          {/* Forçar reprocessamento */}
-          {(caseData.status === "error" || caseData.status === "processing" || caseData.status === "awaiting_pdf") && (
+          {/* Forçar reprocessamento - sempre disponível exceto em done */}
+          {caseData.status !== "done" && caseData.status !== "awaiting_payment" && (
             <Button
               onClick={handleRetry}
               disabled={actionLoading === "retry"}
@@ -272,25 +299,35 @@ export default function AdminCaseDetailPage() {
             </Button>
           )}
 
-          {/* Marcar como pago (DEV) */}
+          {/* Destravar como pago (Override) */}
           {isDevModeEnabled && caseData.status === "awaiting_payment" && (
             <Button
               onClick={handleDevMarkPaid}
               disabled={actionLoading === "mark-paid"}
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >
-              {actionLoading === "mark-paid" ? "Processando..." : "Marcar como pago (DEV)"}
+              {actionLoading === "mark-paid" ? "Processando..." : "Destravar como pago (Override)"}
             </Button>
           )}
 
-          {/* Link para o sindicato */}
-          <Link
-            href={`/s/${caseData.org_slug}/casos/${caseData.id}`}
-            className="px-4 py-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm inline-flex items-center"
-          >
-            Ver como sindicato →
-          </Link>
+          {/* Resetar para aguardando PDF */}
+          {(caseData.status === "error" || caseData.status === "processing") && (
+            <Button
+              onClick={handleResetAwaitingPdf}
+              disabled={actionLoading === "reset-pdf"}
+              className="bg-gray-600 hover:bg-gray-700 text-white"
+            >
+              {actionLoading === "reset-pdf" ? "Resetando..." : "Resetar para aguardando PDF"}
+            </Button>
+          )}
         </div>
+
+        {/* Aviso sobre override */}
+        {isDevModeEnabled && caseData.status === "awaiting_payment" && (
+          <p className="mt-3 text-xs text-orange-600">
+            ⚠️ Override manual NÃO cria pagamento real e NÃO conta em receita/relatórios.
+          </p>
+        )}
       </div>
 
       {/* Erro (se houver) */}
@@ -406,6 +443,41 @@ export default function AdminCaseDetailPage() {
                   )}
                 </div>
                 <span className="text-xs text-gray-400">{formatDate(log.created_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Histórico de Eventos (Auditoria) */}
+      {caseEvents.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-sm font-semibold text-gray-600 mb-4">Histórico de Eventos (Auditoria)</h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {caseEvents.map((event) => (
+              <div
+                key={event.id}
+                className="flex items-start justify-between text-sm p-3 bg-gray-50 rounded"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                      event.type === "manual_override_paid" ? "bg-orange-100 text-orange-700" :
+                      event.type === "admin_retry" || event.type === "bulk_admin_retry" ? "bg-blue-100 text-blue-700" :
+                      event.type === "processing_completed" ? "bg-green-100 text-green-700" :
+                      event.type === "processing_failed" ? "bg-red-100 text-red-700" :
+                      "bg-gray-100 text-gray-700"
+                    }`}>
+                      {event.type.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  {event.payload && Object.keys(event.payload).length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1 truncate max-w-md" title={JSON.stringify(event.payload)}>
+                      {JSON.stringify(event.payload).substring(0, 80)}...
+                    </p>
+                  )}
+                </div>
+                <span className="text-xs text-gray-400 whitespace-nowrap ml-3">{formatDate(event.created_at)}</span>
               </div>
             ))}
           </div>

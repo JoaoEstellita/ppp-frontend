@@ -6,6 +6,7 @@ import { Button } from "@/components/Button";
 import {
   adminListSupportCases,
   adminRetryCase,
+  adminRetryBulk,
   adminResolveSupport,
   SupportCaseItem,
 } from "@/src/services/api";
@@ -31,6 +32,8 @@ export default function AdminSupportPage() {
   const [filter, setFilter] = useState<"all" | "open" | "error" | "processing">("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const loadCases = useCallback(async () => {
     setLoading(true);
@@ -80,11 +83,29 @@ export default function AdminSupportPage() {
     }
   };
 
+  const handleBulkRetry = async () => {
+    setBulkLoading(true);
+    setMessage(null);
+    try {
+      const result = await adminRetryBulk({ status: "error", limit: 20 });
+      setMessage({ 
+        type: "success", 
+        text: `${result.message} Processados: ${result.processed}, Ignorados: ${result.skipped}.`
+      });
+      setShowBulkModal(false);
+      await loadCases();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao reprocessar em lote." });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-gray-900">Casos com Erro / Suporte</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as "all" | "open" | "error" | "processing")}
@@ -102,8 +123,44 @@ export default function AdminSupportPage() {
           >
             Atualizar
           </Button>
+          <Button
+            onClick={() => setShowBulkModal(true)}
+            disabled={loading || cases.length === 0}
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            Reprocessar todos com erro
+          </Button>
         </div>
       </div>
+
+      {/* Modal de confirmação bulk */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Reprocessar todos com erro?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Isso irá reprocessar até 20 casos com status &quot;erro&quot; de uma vez.
+              Os casos serão movidos para status &quot;processing&quot;.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                onClick={() => setShowBulkModal(false)}
+                disabled={bulkLoading}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleBulkRetry}
+                disabled={bulkLoading}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                {bulkLoading ? "Processando..." : "Confirmar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mensagem de feedback */}
       {message && (

@@ -1087,6 +1087,56 @@ export async function adminResolveSupport(requestId: string): Promise<{ ok: bool
   return data as { ok: boolean; message: string };
 }
 
+/**
+ * Admin reprocessa casos em lote
+ */
+export async function adminRetryBulk(params?: { status?: string; limit?: number }): Promise<{
+  ok: boolean;
+  message: string;
+  processed: number;
+  skipped: number;
+  total?: number;
+}> {
+  const res = await apiFetch("/admin/support/cases/retry-bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params || {}),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message: string; processed: number; skipped: number; total?: number };
+}
+
+/**
+ * Admin reseta caso para aguardando PDF
+ */
+export async function adminResetAwaitingPdf(caseId: string): Promise<{ ok: boolean; message: string; status: string }> {
+  const res = await apiFetch(`/admin/cases/${caseId}/reset-awaiting-pdf`, {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message: string; status: string };
+}
+
+/**
+ * Admin lista eventos de um caso (auditoria)
+ */
+export type CaseEvent = {
+  id: string;
+  case_id: string;
+  org_id: string;
+  type: string;
+  actor_user_id: string | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export async function adminListCaseEvents(caseId: string, limit?: number): Promise<CaseEvent[]> {
+  const suffix = limit ? `?limit=${limit}` : "";
+  const res = await apiFetch(`/admin/cases/${caseId}/events${suffix}`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
 // ========== DOCUMENTOS ==========
 
 export type CaseDocument = {
