@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getCaseDetail,
@@ -57,7 +57,8 @@ export default function CaseDetailPage() {
   const [creatingLink, setCreatingLink] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
-  async function fetchCase() {
+  // Memoize fetchCase para usar em useEffect
+  const fetchCase = useCallback(async () => {
     if (!slug || !caseId) return;
     try {
       setLoading(true);
@@ -74,25 +75,69 @@ export default function CaseDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    fetchCase();
   }, [slug, caseId]);
 
-  async function handleCreatePaymentLink() {
+  // Effect para carregar o caso
+  useEffect(() => {
+    fetchCase();
+  }, [fetchCase]);
+
+  // Derivar downloadUrl de caseDetail (memoizado para evitar recálculos)
+  const downloadUrl = useMemo(() => {
+    if (!caseDetail) return undefined;
+    const pdfDoc = (caseDetail.case.documents ?? []).find((doc) =>
+      String(doc.type).toLowerCase().includes("ppp")
+    );
+    return pdfDoc?.url ?? undefined;
+  }, [caseDetail]);
+
+  // Effect para resolver signed URL do PDF - AGORA no topo, antes de qualquer return condicional
+  useEffect(() => {
+    let active = true;
+
+    async function resolveUrl() {
+      if (!downloadUrl) {
+        if (active) setSignedUrl(null);
+        return;
+      }
+      if (downloadUrl.startsWith("http")) {
+        if (active) setSignedUrl(downloadUrl);
+        return;
+      }
+      try {
+        const { data } = await supabaseClient.storage
+          .from("ppp-docs")
+          .createSignedUrl(downloadUrl, 3600);
+        if (active) {
+          setSignedUrl(data?.signedUrl ?? null);
+        }
+      } catch {
+        if (active) setSignedUrl(null);
+      }
+    }
+
+    resolveUrl();
+
+    return () => {
+      active = false;
+    };
+  }, [downloadUrl]);
+
+  // Handler para criar link de pagamento
+  const handleCreatePaymentLink = useCallback(async () => {
     if (!slug || !caseId) return;
     try {
       setCreatingLink(true);
       const data = await createPaymentLink(slug, caseId);
       setPaymentUrl(data.paymentUrl ?? data.payment_url ?? null);
-    } catch (err) {
+    } catch {
       setError("Nao foi possivel gerar o link de pagamento.");
     } finally {
       setCreatingLink(false);
     }
-  }
+  }, [slug, caseId]);
 
+  // Renderização condicional - APÓS todos os hooks
   if (loading) {
     return <div className="text-gray-600">Carregando caso...</div>;
   }
@@ -111,34 +156,6 @@ export default function CaseDetailPage() {
   const { case: caseRecord, worker, company, workflowLogs } = caseDetail;
   const status = caseRecord.status as CaseStatus;
   const statusLabel = STATUS_LABELS[status] ?? status;
-  const pdfDoc = (caseRecord.documents ?? []).find((doc) =>
-    String(doc.type).toLowerCase().includes("ppp")
-  );
-  const downloadUrl = pdfDoc?.url ?? undefined;
-
-  useEffect(() => {
-    let active = true;
-    async function resolveUrl() {
-      if (!downloadUrl) {
-        if (active) setSignedUrl(null);
-        return;
-      }
-      if (downloadUrl.startsWith("http")) {
-        if (active) setSignedUrl(downloadUrl);
-        return;
-      }
-      const { data } = await supabaseClient.storage
-        .from("ppp-docs")
-        .createSignedUrl(downloadUrl, 3600);
-      if (active) {
-        setSignedUrl(data?.signedUrl ?? null);
-      }
-    }
-    resolveUrl();
-    return () => {
-      active = false;
-    };
-  }, [downloadUrl]);
 
   return (
     <div className="space-y-6">
