@@ -986,6 +986,103 @@ export async function revokeOrgInvite(orgId: string, inviteId: string): Promise<
   return data as { ok: boolean };
 }
 
+// ========== RETRY E SUPORTE ==========
+
+export type RetryResponse = {
+  ok: boolean;
+  message: string;
+  retry_count: number;
+};
+
+export type SupportRequestResponse = {
+  ok: boolean;
+  message: string;
+  request_id: string;
+};
+
+export type SupportCaseItem = {
+  case_id: string;
+  org_id: string;
+  org_name: string | null;
+  org_slug: string | null;
+  case_status: string;
+  retry_count: number;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  last_error_step: string | null;
+  last_error_at: string | null;
+  worker_name: string | null;
+  worker_cpf: string | null;
+  company_name: string | null;
+  company_cnpj: string | null;
+  support_request: {
+    id: string;
+    status: string;
+    message: string | null;
+    created_at: string;
+  } | null;
+  created_at: string;
+};
+
+/**
+ * Sindicato solicita retry de um caso com erro
+ */
+export async function retryCase(orgSlug: string, caseId: string): Promise<RetryResponse> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/retry`), {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as RetryResponse;
+}
+
+/**
+ * Sindicato solicita ajuda do suporte
+ */
+export async function requestSupport(
+  orgSlug: string,
+  caseId: string,
+  message?: string
+): Promise<SupportRequestResponse> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/support-request`), {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as SupportRequestResponse;
+}
+
+/**
+ * Admin lista casos com erro/suporte
+ */
+export async function adminListSupportCases(filter?: "open" | "all"): Promise<SupportCaseItem[]> {
+  const suffix = filter ? `?status=${filter}` : "";
+  const res = await apiFetch(`/admin/support/cases${suffix}`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Admin força retry de um caso
+ */
+export async function adminRetryCase(caseId: string): Promise<RetryResponse> {
+  const res = await apiFetch(`/admin/support/cases/${caseId}/retry`, {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as RetryResponse;
+}
+
+/**
+ * Admin resolve solicitação de suporte
+ */
+export async function adminResolveSupport(requestId: string): Promise<{ ok: boolean; message: string }> {
+  const res = await apiFetch(`/admin/support/requests/${requestId}/resolve`, {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message: string };
+}
+
 
 
 

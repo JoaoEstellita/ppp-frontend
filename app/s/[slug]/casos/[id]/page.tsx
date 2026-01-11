@@ -7,6 +7,8 @@ import {
   createPaymentLink,
   devMarkCaseAsPaid,
   devAttachFakePdf,
+  retryCase,
+  requestSupport,
   CaseDetail,
   CaseStatus,
   ApiError,
@@ -61,6 +63,12 @@ export default function CaseDetailPage() {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [attachingPdf, setAttachingPdf] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [requestingSupport, setRequestingSupport] = useState(false);
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportSent, setSupportSent] = useState(false);
+  const [showSupportForm, setShowSupportForm] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Verificar acesso do usuário (platform_admin)
   const { isPlatformAdmin } = useOrgAccess();
@@ -190,6 +198,47 @@ export default function CaseDetailPage() {
     }
   }, [slug, caseId, fetchCase]);
 
+  // Handler para retry
+  const handleRetry = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      setRetrying(true);
+      setActionMessage(null);
+      const result = await retryCase(slug, caseId);
+      setActionMessage({ type: "success", text: result.message });
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setActionMessage({ type: "error", text: err.message || "Não foi possível reprocessar." });
+      } else {
+        setActionMessage({ type: "error", text: "Não foi possível reprocessar." });
+      }
+    } finally {
+      setRetrying(false);
+    }
+  }, [slug, caseId, fetchCase]);
+
+  // Handler para solicitar suporte
+  const handleRequestSupport = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      setRequestingSupport(true);
+      setActionMessage(null);
+      await requestSupport(slug, caseId, supportMessage);
+      setActionMessage({ type: "success", text: "Solicitação de suporte enviada!" });
+      setSupportSent(true);
+      setShowSupportForm(false);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar solicitação." });
+      } else {
+        setActionMessage({ type: "error", text: "Não foi possível enviar solicitação." });
+      }
+    } finally {
+      setRequestingSupport(false);
+    }
+  }, [slug, caseId, supportMessage]);
+
   // Renderização condicional - APÓS todos os hooks
   if (loading) {
     return <div className="text-gray-600">Carregando caso...</div>;
@@ -312,8 +361,101 @@ export default function CaseDetailPage() {
       )}
 
       {status === "error" && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
-          Ocorreu um erro ao gerar o PPP. Verifique as notificacoes.
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-red-800">Erro no processamento</h3>
+              <p className="text-sm text-red-600 mt-1">
+                Ocorreu um erro ao processar o PPP. Você pode tentar novamente ou solicitar ajuda do suporte.
+              </p>
+            </div>
+          </div>
+
+          {/* Mensagem de feedback */}
+          {actionMessage && (
+            <div className={`p-3 rounded text-sm ${
+              actionMessage.type === "success"
+                ? "bg-green-50 text-green-700"
+                : "bg-red-50 text-red-700"
+            }`}>
+              {actionMessage.text}
+            </div>
+          )}
+
+          {/* Botões de ação */}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={handleRetry}
+              disabled={retrying || supportSent}
+              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            >
+              {retrying ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Reprocessando...
+                </span>
+              ) : (
+                "Tentar novamente"
+              )}
+            </Button>
+
+            {!supportSent && !showSupportForm && (
+              <Button
+                onClick={() => setShowSupportForm(true)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                Pedir ajuda ao suporte
+              </Button>
+            )}
+
+            {supportSent && (
+              <span className="text-sm text-green-600 flex items-center gap-1">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Suporte solicitado
+              </span>
+            )}
+          </div>
+
+          {/* Formulário de suporte */}
+          {showSupportForm && !supportSent && (
+            <div className="border-t pt-4 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Descreva o problema (opcional)
+              </label>
+              <textarea
+                value={supportMessage}
+                onChange={(e) => setSupportMessage(e.target.value)}
+                placeholder="Explique o que aconteceu ou informe detalhes adicionais..."
+                rows={3}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleRequestSupport}
+                  disabled={requestingSupport}
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                >
+                  {requestingSupport ? "Enviando..." : "Enviar para suporte"}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowSupportForm(false);
+                    setSupportMessage("");
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
