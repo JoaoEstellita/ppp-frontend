@@ -191,7 +191,7 @@ export default function AdminSupportPage() {
                           </span>
                           {item.support_request.message && (
                             <div className="text-xs text-gray-500 mt-1 truncate max-w-32" title={item.support_request.message}>
-                              "{item.support_request.message}"
+                              &quot;{item.support_request.message}&quot;
                             </div>
                           )}
                         </div>
