@@ -298,8 +298,8 @@ export default function CaseDetailPage() {
       await uploadPppInput(slug, caseId, selectedFile);
       setActionMessage({ type: "success", text: "PDF enviado com sucesso!" });
       setSelectedFile(null);
+      // fetchCase vai atualizar caseDetail, que dispara o useEffect para fetchDocuments
       await fetchCase();
-      await fetchDocuments();
     } catch (err) {
       if (err instanceof ApiError) {
         setActionMessage({ type: "error", text: err.message || "Não foi possível enviar o PDF." });

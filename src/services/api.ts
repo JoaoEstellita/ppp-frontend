@@ -28,6 +28,7 @@ export const API_BASE_URL: string =
 export type CaseStatus =
   | "awaiting_payment"
   | "awaiting_pdf"
+  | "ready_to_process"
   | "processing"
   | "paid_processing"
   | "done"
@@ -37,6 +38,7 @@ export type CaseStatus =
 const KNOWN_CASE_STATUSES: CaseStatus[] = [
   "awaiting_payment",
   "awaiting_pdf",
+  "ready_to_process",
   "processing",
   "paid_processing",
   "done",
