@@ -64,6 +64,8 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
+type FeedbackMessage = { type: "success" | "error"; text: string };
+
 export default function AdminCaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -73,7 +75,7 @@ export default function AdminCaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<FeedbackMessage | null>(null);
   const [caseEvents, setCaseEvents] = useState<CaseEvent[]>([]);
 
   const loadCaseEvents = useCallback(async () => {
