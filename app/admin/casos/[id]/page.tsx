@@ -63,21 +63,6 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
-type FeedbackMessage = { type: "success" | "error"; text: string };
-
-function FeedbackMessageDisplay({ message }: { message: FeedbackMessage | null }) {
-  if (!message) return null;
-  return (
-    <div className={`p-3 rounded text-sm ${
-      message.type === "success"
-        ? "bg-green-50 text-green-700"
-        : "bg-red-50 text-red-700"
-    }`}>
-      {message.text}
-    </div>
-  );
-}
-
 export default function AdminCaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -87,7 +72,7 @@ export default function AdminCaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [message, setMessage] = useState<FeedbackMessage | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [caseEvents, setCaseEvents] = useState<CaseEvent[]>([]);
 
   const loadCaseEvents = useCallback(async () => {
@@ -299,7 +284,15 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Mensagem de feedback */}
-      <FeedbackMessageDisplay message={message} />
+      {message !== null ? (
+        <div className={`p-3 rounded text-sm ${
+          message.type === "success"
+            ? "bg-green-50 text-green-700"
+            : "bg-red-50 text-red-700"
+        }`}>
+          {message.text}
+        </div>
+      ) : null}
 
       {/* Grid de informações */}
       <div className="grid gap-6 md:grid-cols-2">
