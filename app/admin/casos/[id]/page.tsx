@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
@@ -15,7 +15,6 @@ import {
   adminSubmitCase,
   adminMarkCaseAsError,
   CaseEvent,
-  ApiError,
 } from "@/src/services/api";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -64,16 +63,6 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 type FeedbackMessage = { type: "success" | "error"; text: string };
-
-// Type-guard para blindagem total contra unknown
-function isFeedbackMessage(v: unknown): v is FeedbackMessage {
-  if (typeof v !== "object" || v === null) return false;
-  const obj = v as Record<string, unknown>;
-  return (
-    (obj.type === "success" || obj.type === "error") &&
-    typeof obj.text === "string"
-  );
-}
 
 export default function AdminCaseDetailPage() {
   const router = useRouter();
@@ -216,18 +205,15 @@ export default function AdminCaseDetailPage() {
     const caseData = caseDetail.case;
     if (caseData.status !== "processing") return false;
     
-    const processingStartedAt = (caseData as Record<string, unknown>).processing_started_at as string | null;
-    const lastN8nCallbackAt = (caseData as Record<string, unknown>).last_n8n_callback_at as string | null;
+    if (!caseData.processing_started_at) return false;
     
-    if (!processingStartedAt) return false;
-    
-    const startedAt = new Date(processingStartedAt);
+    const startedAt = new Date(caseData.processing_started_at);
     const thresholdMs = 15 * 60 * 1000; // 15 minutos
     const now = new Date();
     
     if (now.getTime() - startedAt.getTime() > thresholdMs) {
-      if (!lastN8nCallbackAt) return true;
-      const callbackAt = new Date(lastN8nCallbackAt);
+      if (!caseData.last_n8n_callback_at) return true;
+      const callbackAt = new Date(caseData.last_n8n_callback_at);
       if (callbackAt < startedAt) return true;
     }
     
@@ -255,6 +241,23 @@ export default function AdminCaseDetailPage() {
 
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
 
+  // Variável intermediária com tipo explícito para evitar erro de inferência unknown
+  const feedbackNode: React.ReactNode = (() => {
+    const fb = feedback;
+    if (!fb) return null;
+
+    const cls =
+      fb.type === "success"
+        ? "bg-green-50 text-green-700"
+        : "bg-red-50 text-red-700";
+
+    return (
+      <div className={`p-3 rounded text-sm ${cls}`}>
+        {fb.text}
+      </div>
+    );
+  })();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -274,20 +277,12 @@ export default function AdminCaseDetailPage() {
           </div>
         </div>
         <Badge variant={getStatusBadgeVariant(caseData.status)}>
-          {STATUS_LABELS[caseData.status] ?? caseData.status}
+          {String(STATUS_LABELS[caseData.status] ?? caseData.status)}
         </Badge>
       </div>
 
       {/* Mensagem de feedback */}
-      {isFeedbackMessage(feedback) && (
-        <div className={`p-3 rounded text-sm ${
-          feedback.type === "success"
-            ? "bg-green-50 text-green-700"
-            : "bg-red-50 text-red-700"
-        }`}>
-          {feedback.text}
-        </div>
-      )}
+      {feedbackNode}
 
       {/* Grid de informações */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -350,7 +345,7 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Status N8N - Painel de Monitoramento */}
-      {(caseData.status === "processing" || (caseData as Record<string, unknown>).last_n8n_status) && (
+      {(caseData.status === "processing" || caseData.last_n8n_status) && (
         <div className={`rounded-lg shadow p-6 ${isStuck() ? "bg-amber-50 border-2 border-amber-400" : "bg-white"}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-600">Status N8N</h3>
@@ -362,41 +357,41 @@ export default function AdminCaseDetailPage() {
             <div>
               <span className="text-gray-500">Último Submit:</span>{" "}
               <span className="font-medium">
-                {formatDate((caseData as Record<string, unknown>).last_submit_at as string | null)}
+                {formatDate(caseData.last_submit_at)}
               </span>
             </div>
             <div>
               <span className="text-gray-500">Tentativas:</span>{" "}
-              <span className="font-medium">{(caseData as Record<string, unknown>).submit_attempts ?? 0}</span>
+              <span className="font-medium">{caseData.submit_attempts ?? 0}</span>
             </div>
             <div>
               <span className="text-gray-500">Status N8N:</span>{" "}
               <span className={`font-medium ${
-                (caseData as Record<string, unknown>).last_n8n_status === "success" ? "text-green-600" :
-                (caseData as Record<string, unknown>).last_n8n_status === "error" ? "text-red-600" :
-                (caseData as Record<string, unknown>).last_n8n_status === "submitted" ? "text-blue-600" :
+                caseData.last_n8n_status === "success" ? "text-green-600" :
+                caseData.last_n8n_status === "error" ? "text-red-600" :
+                caseData.last_n8n_status === "submitted" ? "text-blue-600" :
                 "text-gray-600"
               }`}>
-                {(caseData as Record<string, unknown>).last_n8n_status ?? "-"}
+                {caseData.last_n8n_status ?? "-"}
               </span>
             </div>
             <div>
               <span className="text-gray-500">Início Processing:</span>{" "}
               <span className="font-medium">
-                {formatDate((caseData as Record<string, unknown>).processing_started_at as string | null)}
+                {formatDate(caseData.processing_started_at)}
               </span>
             </div>
             <div>
               <span className="text-gray-500">Último Callback:</span>{" "}
               <span className="font-medium">
-                {formatDate((caseData as Record<string, unknown>).last_n8n_callback_at as string | null)}
+                {formatDate(caseData.last_n8n_callback_at)}
               </span>
             </div>
-            {(caseData as Record<string, unknown>).last_n8n_error && (
+            {caseData.last_n8n_error && (
               <div className="sm:col-span-2 lg:col-span-3">
                 <span className="text-gray-500">Último Erro N8N:</span>{" "}
                 <span className="font-medium text-red-600">
-                  {(caseData as Record<string, unknown>).last_n8n_error as string}
+                  {caseData.last_n8n_error}
                 </span>
               </div>
             )}

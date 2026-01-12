@@ -1325,6 +1325,14 @@ export type AdminCaseDetail = {
     last_error_message: string | null;
     last_error_step: string | null;
     last_error_at: string | null;
+    // Campos N8N robustness
+    processing_started_at: string | null;
+    last_submit_at: string | null;
+    submit_attempts: number;
+    last_n8n_status: string | null;
+    last_n8n_error: string | null;
+    last_n8n_callback_at: string | null;
+    n8n_correlation_id: string | null;
   };
   worker: { id: string; name: string | null; cpf: string | null; birth_date?: string } | null;
   company: { id: string; name: string | null; cnpj: string | null } | null;
