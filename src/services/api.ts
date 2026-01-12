@@ -107,6 +107,7 @@ export interface FrontendCase {
   documents?: FrontendDocument[];
   analysis?: CaseAnalysis | null;
   payment?: CasePayment | null;
+  manual_override_paid?: boolean;
 }
 
 // Tipo compativel com a estrutura antiga (para retrocompatibilidade com mock data)
@@ -582,6 +583,7 @@ function normalizeCaseResponse(payload: any): FrontendCase {
         base.case_analysis ??
         null
     ),
+    manual_override_paid: base.manual_override_paid ?? payload.manual_override_paid ?? false,
   };
 }
 
