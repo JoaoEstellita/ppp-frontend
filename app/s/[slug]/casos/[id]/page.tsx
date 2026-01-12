@@ -12,6 +12,7 @@ import {
   uploadPppInput,
   listCaseDocuments,
   getDocumentDownloadUrl,
+  submitCase,
   CaseDetail,
   CaseStatus,
   CaseDocument,
@@ -25,6 +26,7 @@ import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
   awaiting_pdf: "Aguardando PDF",
+  ready_to_process: "Pronto para análise",
   processing: "Processando",
   paid_processing: "Pago / Processando",
   done: "Concluido",
@@ -39,6 +41,8 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
     case "processing":
     case "paid_processing":
       return "info";
+    case "ready_to_process":
+      return "success";
     case "awaiting_payment":
     case "awaiting_pdf":
       return "warning";
@@ -110,6 +114,9 @@ export default function CaseDetailPage() {
   
   // Estados para upload de PDF
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  
+  // Estado para submit para análise
+  const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caseDocuments, setCaseDocuments] = useState<CaseDocument[]>([]);
 
@@ -289,9 +296,10 @@ export default function CaseDetailPage() {
       setUploadingPdf(true);
       setActionMessage(null);
       await uploadPppInput(slug, caseId, selectedFile);
-      setActionMessage({ type: "success", text: "PDF enviado com sucesso! Processamento iniciado." });
+      setActionMessage({ type: "success", text: "PDF enviado com sucesso!" });
       setSelectedFile(null);
       await fetchCase();
+      await fetchDocuments();
     } catch (err) {
       if (err instanceof ApiError) {
         setActionMessage({ type: "error", text: err.message || "Não foi possível enviar o PDF." });
@@ -302,6 +310,28 @@ export default function CaseDetailPage() {
       setUploadingPdf(false);
     }
   }, [slug, caseId, selectedFile, fetchCase]);
+
+  // Handler para enviar para análise (n8n)
+  const handleSubmitForAnalysis = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      setSubmitting(true);
+      setActionMessage(null);
+      const result = await submitCase(slug, caseId);
+      if (result.ok) {
+        setActionMessage({ type: "success", text: result.message || "Enviado para análise!" });
+        await fetchCase();
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar para análise." });
+      } else {
+        setActionMessage({ type: "error", text: "Não foi possível enviar para análise." });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [slug, caseId, fetchCase]);
 
   // Carregar documentos do caso
   const fetchDocuments = useCallback(async () => {
@@ -324,6 +354,17 @@ export default function CaseDetailPage() {
   const hasPppInput = useMemo(() => {
     return caseDocuments.some(doc => doc.document_type === "ppp_input");
   }, [caseDocuments]);
+
+  // Verificar se tem documento PPP output (resultado final)
+  const pppOutputDoc = useMemo(() => {
+    return caseDocuments.find(doc => doc.document_type === "ppp_output");
+  }, [caseDocuments]);
+
+  // Verificar se pode enviar para análise
+  const canSubmitForAnalysis = useMemo(() => {
+    const status = caseDetail?.case.status as CaseStatus;
+    return (status === "ready_to_process" || status === "error") && hasPppInput;
+  }, [caseDetail?.case.status, hasPppInput]);
 
   // Renderização condicional - APÓS todos os hooks
   if (loading) {
@@ -403,8 +444,71 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* Upload de PDF - Disponível em awaiting_payment e awaiting_pdf */}
-      {(status === "awaiting_payment" || status === "awaiting_pdf") && (
+      {/* Checklist de requisitos */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-sm font-semibold text-gray-600 mb-4">Checklist</h3>
+        <div className="space-y-3">
+          {/* Pagamento */}
+          <div className="flex items-center gap-3">
+            {(status !== "awaiting_payment" || caseRecord.manual_override_paid) ? (
+              <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+            )}
+            <span className={`text-sm ${status !== "awaiting_payment" ? "text-green-700" : "text-gray-600"}`}>
+              {status !== "awaiting_payment" ? "Pagamento confirmado" : "Aguardando pagamento"}
+            </span>
+          </div>
+
+          {/* PDF */}
+          <div className="flex items-center gap-3">
+            {hasPppInput ? (
+              <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+            )}
+            <span className={`text-sm ${hasPppInput ? "text-green-700" : "text-gray-600"}`}>
+              {hasPppInput ? "PDF do PPP anexado" : "Aguardando PDF do PPP"}
+            </span>
+            {hasPppInput && (
+              <DownloadPdfButton 
+                slug={slug} 
+                caseId={caseId} 
+                docId={caseDocuments.find(d => d.document_type === "ppp_input")?.id || ""}
+              />
+            )}
+          </div>
+
+          {/* Envio */}
+          <div className="flex items-center gap-3">
+            {(status === "processing" || status === "paid_processing" || status === "done") ? (
+              <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+            )}
+            <span className={`text-sm ${(status === "processing" || status === "done") ? "text-green-700" : "text-gray-600"}`}>
+              {status === "done" ? "Análise concluída" : 
+               (status === "processing" || status === "paid_processing") ? "Em processamento" : 
+               "Aguardando envio para análise"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Upload de PDF - Disponível em awaiting_payment, awaiting_pdf e ready_to_process */}
+      {(status === "awaiting_payment" || status === "awaiting_pdf" || status === "ready_to_process") && (
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <div className="flex items-start gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -511,7 +615,55 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* Removido bloco duplicado de awaiting_pdf - agora unificado com awaiting_payment */}
+      {/* Status ready_to_process - Pronto para enviar para análise */}
+      {status === "ready_to_process" && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-green-800">Pronto para análise!</h3>
+              <p className="text-sm text-green-600 mt-1">
+                Pagamento confirmado e PDF anexado. Clique no botão abaixo para enviar para processamento.
+              </p>
+            </div>
+          </div>
+
+          {/* Mensagem de feedback */}
+          {actionMessage && (
+            <div className={`p-3 rounded text-sm ${
+              actionMessage.type === "success"
+                ? "bg-green-100 text-green-800 border border-green-300"
+                : "bg-red-50 text-red-700"
+            }`}>
+              {actionMessage.text}
+            </div>
+          )}
+
+          <Button
+            onClick={handleSubmitForAnalysis}
+            disabled={submitting}
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 text-base font-medium"
+          >
+            {submitting ? (
+              <span className="flex items-center gap-2">
+                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Enviando...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Enviar para análise
+              </span>
+            )}
+          </Button>
+        </div>
+      )}
 
       {(status === "processing" || status === "paid_processing") && (
         <div className="bg-white rounded-lg shadow p-6 space-y-2">
@@ -546,20 +698,45 @@ export default function CaseDetailPage() {
       )}
 
       {status === "done" && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-2">
-          <h3 className="text-lg font-semibold text-gray-900">PPP concluido</h3>
-          {signedUrl ? (
-            <a
-              href={signedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline text-sm"
-            >
-              Baixar PDF do PPP
-            </a>
-          ) : (
-            <p className="text-sm text-gray-600">PDF ainda nao disponivel.</p>
-          )}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-green-800">PPP Concluído!</h3>
+              <p className="text-sm text-green-600 mt-1">
+                O processamento foi concluído com sucesso. Baixe o PDF do resultado abaixo.
+              </p>
+            </div>
+          </div>
+
+          {/* Download do PPP output */}
+          <div className="flex flex-wrap gap-3">
+            {pppOutputDoc ? (
+              <DownloadPdfButton 
+                slug={slug} 
+                caseId={caseId} 
+                docId={pppOutputDoc.id}
+              />
+            ) : signedUrl ? (
+              <a
+                href={signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium text-sm inline-flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Baixar PDF do PPP
+              </a>
+            ) : (
+              <p className="text-sm text-gray-600">PDF ainda não disponível.</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -632,18 +809,18 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          {/* Botões de ação - só mostra retry se tem PDF input */}
+          {/* Botões de ação - só mostra submit/retry se tem PDF input */}
           <div className="flex flex-wrap gap-3">
             {hasPppInput && (
               <Button
-                onClick={handleRetry}
-                disabled={retrying || supportSent}
+                onClick={handleSubmitForAnalysis}
+                disabled={submitting || supportSent}
                 className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
               >
-                {retrying ? (
+                {submitting ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Reprocessando...
+                    Enviando...
                   </span>
                 ) : (
                   "Tentar novamente"

@@ -8,6 +8,8 @@ import {
   adminRetryCase,
   adminRetryBulk,
   adminResolveSupport,
+  adminSubmitCase,
+  adminSubmitBulk,
   SupportCaseItem,
 } from "@/src/services/api";
 
@@ -87,17 +89,34 @@ export default function AdminSupportPage() {
     setBulkLoading(true);
     setMessage(null);
     try {
-      const result = await adminRetryBulk({ status: "error", limit: 20 });
+      const result = await adminSubmitBulk({ status: "error", limit: 20 });
       setMessage({ 
         type: "success", 
-        text: `${result.message} Processados: ${result.processed}, Ignorados: ${result.skipped}.`
+        text: `${result.message} Enviados: ${result.submitted}, Ignorados: ${result.skipped}, Falhas: ${result.failed}.`
       });
       setShowBulkModal(false);
       await loadCases();
     } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Erro ao reprocessar em lote." });
+      setMessage({ type: "error", text: err.message || "Erro ao enviar em lote." });
     } finally {
       setBulkLoading(false);
+    }
+  };
+
+  const handleSubmit = async (caseId: string) => {
+    setActionLoading(`submit-${caseId}`);
+    setMessage(null);
+    try {
+      const result = await adminSubmitCase(caseId);
+      setMessage({ 
+        type: "success", 
+        text: result.message || "Enviado para análise!"
+      });
+      await loadCases();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao enviar para análise." });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -126,9 +145,9 @@ export default function AdminSupportPage() {
           <Button
             onClick={() => setShowBulkModal(true)}
             disabled={loading || cases.length === 0}
-            className="bg-orange-500 hover:bg-orange-600 text-white"
+            className="bg-green-600 hover:bg-green-700 text-white"
           >
-            Reprocessar todos com erro
+            Enviar todos com erro
           </Button>
         </div>
       </div>
@@ -137,10 +156,10 @@ export default function AdminSupportPage() {
       {showBulkModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Reprocessar todos com erro?</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Enviar todos com erro para análise?</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Isso irá reprocessar até 20 casos com status &quot;erro&quot; de uma vez.
-              Os casos serão movidos para status &quot;processing&quot;.
+              Isso irá enviar até 20 casos com status &quot;erro&quot; para análise no n8n.
+              Apenas casos com pagamento confirmado e PDF anexado serão processados.
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -153,9 +172,9 @@ export default function AdminSupportPage() {
               <Button
                 onClick={handleBulkRetry}
                 disabled={bulkLoading}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
-                {bulkLoading ? "Processando..." : "Confirmar"}
+                {bulkLoading ? "Enviando..." : "Confirmar"}
               </Button>
             </div>
           </div>
@@ -264,17 +283,17 @@ export default function AdminSupportPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleRetry(item.case_id)}
-                          disabled={actionLoading === `retry-${item.case_id}`}
-                          className="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50 transition-colors"
+                          onClick={() => handleSubmit(item.case_id)}
+                          disabled={actionLoading === `submit-${item.case_id}`}
+                          className="px-3 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 transition-colors"
                         >
-                          {actionLoading === `retry-${item.case_id}` ? "..." : "Reprocessar"}
+                          {actionLoading === `submit-${item.case_id}` ? "..." : "Enviar para análise"}
                         </button>
                         {item.support_request && (
                           <button
                             onClick={() => handleResolve(item.support_request!.id)}
                             disabled={actionLoading === `resolve-${item.support_request!.id}`}
-                            className="px-3 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 transition-colors"
+                            className="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50 transition-colors"
                           >
                             {actionLoading === `resolve-${item.support_request!.id}` ? "..." : "Resolver"}
                           </button>

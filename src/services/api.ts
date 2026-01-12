@@ -1137,6 +1137,57 @@ export async function adminListCaseEvents(caseId: string, limit?: number): Promi
   return Array.isArray(data) ? data : [];
 }
 
+// ========== SUBMIT PARA ANÁLISE (N8N) ==========
+
+export type SubmitResponse = {
+  ok: boolean;
+  message: string;
+  status?: CaseStatus;
+  idempotent?: boolean;
+};
+
+/**
+ * Sindicato envia caso para análise (n8n)
+ */
+export async function submitCase(orgSlug: string, caseId: string): Promise<SubmitResponse> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/submit`), {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as SubmitResponse;
+}
+
+/**
+ * Admin envia caso para análise (n8n)
+ */
+export async function adminSubmitCase(caseId: string): Promise<SubmitResponse> {
+  const res = await apiFetch(`/admin/cases/${caseId}/submit`, {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as SubmitResponse;
+}
+
+/**
+ * Admin envia múltiplos casos para análise em lote
+ */
+export async function adminSubmitBulk(params?: { status?: string; limit?: number }): Promise<{
+  ok: boolean;
+  message: string;
+  submitted: number;
+  skipped: number;
+  failed: number;
+  total?: number;
+}> {
+  const res = await apiFetch("/admin/support/cases/submit-bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params || {}),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message: string; submitted: number; skipped: number; failed: number; total?: number };
+}
+
 // ========== DOCUMENTOS ==========
 
 export type CaseDocument = {

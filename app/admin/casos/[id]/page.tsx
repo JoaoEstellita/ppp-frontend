@@ -13,6 +13,7 @@ import {
   devMarkCaseAsPaid,
   adminResetAwaitingPdf,
   adminListCaseEvents,
+  adminSubmitCase,
   CaseEvent,
   ApiError,
 } from "@/src/services/api";
@@ -20,6 +21,7 @@ import {
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
   awaiting_pdf: "Aguardando PDF",
+  ready_to_process: "Pronto para análise",
   processing: "Processando",
   paid_processing: "Pago / Processando",
   done: "Concluído",
@@ -34,6 +36,8 @@ function getStatusBadgeVariant(status: string): "success" | "warning" | "danger"
     case "processing":
     case "paid_processing":
       return "info";
+    case "ready_to_process":
+      return "success";
     case "awaiting_payment":
     case "awaiting_pdf":
       return "warning";
@@ -141,6 +145,25 @@ export default function AdminCaseDetailPage() {
         setMessage({ type: "error", text: err.message || "Erro ao destravar fluxo." });
       } else {
         setMessage({ type: "error", text: "Erro ao destravar fluxo." });
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSubmitForAnalysis = async () => {
+    setActionLoading("submit");
+    setMessage(null);
+    try {
+      const result = await adminSubmitCase(caseId);
+      setMessage({ type: "success", text: result.message || "Enviado para análise!" });
+      await loadCase();
+      await loadCaseEvents();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setMessage({ type: "error", text: err.message || "Erro ao enviar para análise." });
+      } else {
+        setMessage({ type: "error", text: "Erro ao enviar para análise." });
       }
     } finally {
       setActionLoading(null);
@@ -288,8 +311,19 @@ export default function AdminCaseDetailPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-sm font-semibold text-gray-600 mb-4">Ações Admin</h3>
         <div className="flex flex-wrap gap-3">
-          {/* Forçar reprocessamento - sempre disponível exceto em done */}
-          {caseData.status !== "done" && caseData.status !== "awaiting_payment" && (
+          {/* Enviar para análise (n8n) */}
+          {(caseData.status === "ready_to_process" || caseData.status === "error") && (
+            <Button
+              onClick={handleSubmitForAnalysis}
+              disabled={actionLoading === "submit"}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {actionLoading === "submit" ? "Enviando..." : "Enviar para análise"}
+            </Button>
+          )}
+
+          {/* Forçar reprocessamento - disponível em processing */}
+          {(caseData.status === "processing" || caseData.status === "paid_processing") && (
             <Button
               onClick={handleRetry}
               disabled={actionLoading === "retry"}
