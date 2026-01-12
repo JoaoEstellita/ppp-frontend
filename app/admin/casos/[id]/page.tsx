@@ -63,6 +63,8 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
+type FeedbackMessage = { type: "success" | "error"; text: string };
+
 export default function AdminCaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -72,7 +74,7 @@ export default function AdminCaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
   const [caseEvents, setCaseEvents] = useState<CaseEvent[]>([]);
 
   const loadCaseEvents = useCallback(async () => {
@@ -106,13 +108,13 @@ export default function AdminCaseDetailPage() {
 
   const handleRetry = async () => {
     setActionLoading("retry");
-    setMessage(null);
+    setFeedback(null);
     try {
       const result = await adminRetryCase(caseId);
-      setMessage({ type: "success", text: result.message });
+      setFeedback({ type: "success", text: String(result?.message ?? "Reprocessamento iniciado!") });
       await loadCase();
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Erro ao reprocessar." });
+    } catch (err) {
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
     }
@@ -124,8 +126,8 @@ export default function AdminCaseDetailPage() {
       const { signedUrl } = await adminGetDocumentDownloadUrl(caseId, docId);
       // Abrir em nova aba
       window.open(signedUrl, "_blank");
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Erro ao gerar download." });
+    } catch (err) {
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
     }
@@ -134,18 +136,14 @@ export default function AdminCaseDetailPage() {
   const handleDevMarkPaid = async () => {
     if (!caseDetail || !caseDetail.case.org_slug) return;
     setActionLoading("mark-paid");
-    setMessage(null);
+    setFeedback(null);
     try {
       const result = await devMarkCaseAsPaid(caseDetail.case.org_slug as string, caseId);
-      setMessage({ type: "success", text: result.message || "Fluxo destravado com sucesso!" });
+      setFeedback({ type: "success", text: String(result?.message ?? "Fluxo destravado com sucesso!") });
       await loadCase();
       await loadCaseEvents();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setMessage({ type: "error", text: err.message || "Erro ao destravar fluxo." });
-      } else {
-        setMessage({ type: "error", text: "Erro ao destravar fluxo." });
-      }
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
     }
@@ -153,18 +151,14 @@ export default function AdminCaseDetailPage() {
 
   const handleSubmitForAnalysis = async () => {
     setActionLoading("submit");
-    setMessage(null);
+    setFeedback(null);
     try {
       const result = await adminSubmitCase(caseId);
-      setMessage({ type: "success", text: result.message || "Enviado para análise!" });
+      setFeedback({ type: "success", text: String(result?.message ?? "Enviado para análise!") });
       await loadCase();
       await loadCaseEvents();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setMessage({ type: "error", text: err.message || "Erro ao enviar para análise." });
-      } else {
-        setMessage({ type: "error", text: "Erro ao enviar para análise." });
-      }
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
     }
@@ -172,18 +166,14 @@ export default function AdminCaseDetailPage() {
 
   const handleResetAwaitingPdf = async () => {
     setActionLoading("reset-pdf");
-    setMessage(null);
+    setFeedback(null);
     try {
       const result = await adminResetAwaitingPdf(caseId);
-      setMessage({ type: "success", text: result.message });
+      setFeedback({ type: "success", text: String(result?.message ?? "Resetado com sucesso!") });
       await loadCase();
       await loadCaseEvents();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setMessage({ type: "error", text: err.message || "Erro ao resetar." });
-      } else {
-        setMessage({ type: "error", text: "Erro ao resetar." });
-      }
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
     }
@@ -194,18 +184,14 @@ export default function AdminCaseDetailPage() {
     if (reason === null) return; // Cancelou
     
     setActionLoading("mark-error");
-    setMessage(null);
+    setFeedback(null);
     try {
       const result = await adminMarkCaseAsError(caseId, reason || undefined);
-      setMessage({ type: "success", text: result.message });
+      setFeedback({ type: "success", text: String(result?.message ?? "Marcado como erro!") });
       await loadCase();
       await loadCaseEvents();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setMessage({ type: "error", text: err.message || "Erro ao marcar como erro." });
-      } else {
-        setMessage({ type: "error", text: "Erro ao marcar como erro." });
-      }
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
     }
@@ -282,14 +268,14 @@ export default function AdminCaseDetailPage() {
         </Badge>
       </div>
 
-      {/* Mensagem de feedback - renderizado via função */}
-      {message && message.text && (
+      {/* Mensagem de feedback */}
+      {feedback && (
         <div className={`p-3 rounded text-sm ${
-          message.type === "success"
+          feedback.type === "success"
             ? "bg-green-50 text-green-700"
             : "bg-red-50 text-red-700"
         }`}>
-          {message.text}
+          {feedback.text}
         </div>
       )}
 
