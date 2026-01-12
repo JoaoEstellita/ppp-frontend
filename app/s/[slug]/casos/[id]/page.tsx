@@ -666,15 +666,19 @@ export default function CaseDetailPage() {
       )}
 
       {(status === "processing" || status === "paid_processing") && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 space-y-2">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
               <span className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">PPP em processamento</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                O PDF está sendo processado. Aguarde a conclusão.
+              <h3 className="text-lg font-semibold text-blue-900">PPP em processamento</h3>
+              <p className="text-sm text-blue-700 mt-1">
+                Seu PPP foi enviado para análise e está sendo processado.
+              </p>
+              <p className="text-sm text-blue-600 mt-2">
+                Aguarde a conclusão. Você será notificado quando o resultado estiver disponível.
+                Este processo pode levar alguns minutos.
               </p>
             </div>
           </div>

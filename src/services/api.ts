@@ -108,6 +108,13 @@ export interface FrontendCase {
   analysis?: CaseAnalysis | null;
   payment?: CasePayment | null;
   manual_override_paid?: boolean;
+  // Campos N8N robustez
+  processing_started_at?: string | null;
+  last_submit_at?: string | null;
+  submit_attempts?: number;
+  last_n8n_status?: 'submitted' | 'success' | 'error' | 'timeout' | 'network_error' | null;
+  last_n8n_error?: string | null;
+  last_n8n_callback_at?: string | null;
 }
 
 // Tipo compativel com a estrutura antiga (para retrocompatibilidade com mock data)
@@ -584,6 +591,13 @@ function normalizeCaseResponse(payload: any): FrontendCase {
         null
     ),
     manual_override_paid: base.manual_override_paid ?? payload.manual_override_paid ?? false,
+    // Campos N8N robustez
+    processing_started_at: base.processing_started_at ?? payload.processing_started_at ?? null,
+    last_submit_at: base.last_submit_at ?? payload.last_submit_at ?? null,
+    submit_attempts: base.submit_attempts ?? payload.submit_attempts ?? 0,
+    last_n8n_status: base.last_n8n_status ?? payload.last_n8n_status ?? null,
+    last_n8n_error: base.last_n8n_error ?? payload.last_n8n_error ?? null,
+    last_n8n_callback_at: base.last_n8n_callback_at ?? payload.last_n8n_callback_at ?? null,
   };
 }
 
@@ -1190,6 +1204,19 @@ export async function adminSubmitBulk(params?: { status?: string; limit?: number
   });
   const data = await handleJsonResponse(res);
   return data as { ok: boolean; message: string; submitted: number; skipped: number; failed: number; total?: number };
+}
+
+/**
+ * Admin marca caso stuck como erro manualmente
+ */
+export async function adminMarkCaseAsError(caseId: string, reason?: string): Promise<{ ok: boolean; message: string }> {
+  const res = await apiFetch(`/admin/cases/${caseId}/mark-error`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message: string };
 }
 
 // ========== DOCUMENTOS ==========

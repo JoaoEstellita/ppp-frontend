@@ -14,6 +14,7 @@ import {
   adminResetAwaitingPdf,
   adminListCaseEvents,
   adminSubmitCase,
+  adminMarkCaseAsError,
   CaseEvent,
   ApiError,
 } from "@/src/services/api";
@@ -189,8 +190,54 @@ export default function AdminCaseDetailPage() {
     }
   };
 
+  const handleMarkAsError = async () => {
+    const reason = window.prompt("Motivo do erro (opcional):", "Sem retorno do n8n - timeout");
+    if (reason === null) return; // Cancelou
+    
+    setActionLoading("mark-error");
+    setMessage(null);
+    try {
+      const result = await adminMarkCaseAsError(caseId, reason || undefined);
+      setMessage({ type: "success", text: result.message });
+      await loadCase();
+      await loadCaseEvents();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setMessage({ type: "error", text: err.message || "Erro ao marcar como erro." });
+      } else {
+        setMessage({ type: "error", text: "Erro ao marcar como erro." });
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Verificar se o modo DEV está habilitado
   const isDevModeEnabled = process.env.NEXT_PUBLIC_DEV_MODE === "true";
+
+  // Detectar caso "stuck" (processing sem callback há mais de 15 min)
+  const isStuck = (): boolean => {
+    if (!caseDetail) return false;
+    const caseData = caseDetail.case;
+    if (caseData.status !== "processing") return false;
+    
+    const processingStartedAt = (caseData as Record<string, unknown>).processing_started_at as string | null;
+    const lastN8nCallbackAt = (caseData as Record<string, unknown>).last_n8n_callback_at as string | null;
+    
+    if (!processingStartedAt) return false;
+    
+    const startedAt = new Date(processingStartedAt);
+    const thresholdMs = 15 * 60 * 1000; // 15 minutos
+    const now = new Date();
+    
+    if (now.getTime() - startedAt.getTime() > thresholdMs) {
+      if (!lastN8nCallbackAt) return true;
+      const callbackAt = new Date(lastN8nCallbackAt);
+      if (callbackAt < startedAt) return true;
+    }
+    
+    return false;
+  };
 
   if (loading) {
     return (
@@ -306,6 +353,81 @@ export default function AdminCaseDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Status N8N - Painel de Monitoramento */}
+      {(caseData.status === "processing" || (caseData as Record<string, unknown>).last_n8n_status) && (
+        <div className={`rounded-lg shadow p-6 ${isStuck() ? "bg-amber-50 border-2 border-amber-400" : "bg-white"}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-600">Status N8N</h3>
+            {isStuck() && (
+              <Badge variant="warning">⚠️ Sem retorno do n8n</Badge>
+            )}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+            <div>
+              <span className="text-gray-500">Último Submit:</span>{" "}
+              <span className="font-medium">
+                {formatDate((caseData as Record<string, unknown>).last_submit_at as string | null)}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">Tentativas:</span>{" "}
+              <span className="font-medium">{(caseData as Record<string, unknown>).submit_attempts ?? 0}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Status N8N:</span>{" "}
+              <span className={`font-medium ${
+                (caseData as Record<string, unknown>).last_n8n_status === "success" ? "text-green-600" :
+                (caseData as Record<string, unknown>).last_n8n_status === "error" ? "text-red-600" :
+                (caseData as Record<string, unknown>).last_n8n_status === "submitted" ? "text-blue-600" :
+                "text-gray-600"
+              }`}>
+                {(caseData as Record<string, unknown>).last_n8n_status ?? "-"}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">Início Processing:</span>{" "}
+              <span className="font-medium">
+                {formatDate((caseData as Record<string, unknown>).processing_started_at as string | null)}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">Último Callback:</span>{" "}
+              <span className="font-medium">
+                {formatDate((caseData as Record<string, unknown>).last_n8n_callback_at as string | null)}
+              </span>
+            </div>
+            {(caseData as Record<string, unknown>).last_n8n_error && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <span className="text-gray-500">Último Erro N8N:</span>{" "}
+                <span className="font-medium text-red-600">
+                  {(caseData as Record<string, unknown>).last_n8n_error as string}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          {/* Ações para casos stuck */}
+          {isStuck() && (
+            <div className="mt-4 pt-4 border-t border-amber-300 flex flex-wrap gap-3">
+              <Button
+                onClick={handleSubmitForAnalysis}
+                disabled={actionLoading === "submit"}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {actionLoading === "submit" ? "Reenviando..." : "Reenviar para análise"}
+              </Button>
+              <Button
+                onClick={handleMarkAsError}
+                disabled={actionLoading === "mark-error"}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {actionLoading === "mark-error" ? "Marcando..." : "Marcar como erro"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Ações Admin - sempre visíveis para facilitar acesso rápido */}
       <div className="bg-white rounded-lg shadow p-6">
