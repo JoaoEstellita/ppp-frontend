@@ -286,7 +286,7 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Mensagem de feedback */}
-      {message && (
+      {message ? (
         <div className={`p-3 rounded text-sm ${
           message.type === "success"
             ? "bg-green-50 text-green-700"
@@ -294,7 +294,7 @@ export default function AdminCaseDetailPage() {
         }`}>
           {message.text}
         </div>
-      )}
+      ) : null}
 
       {/* Grid de informações */}
       <div className="grid gap-6 md:grid-cols-2">
