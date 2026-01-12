@@ -104,6 +104,19 @@ export default function AdminCaseDetailPage() {
     loadCaseEvents();
   }, [loadCase, loadCaseEvents]);
 
+  // Polling automático quando caso está em processing (a cada 10 segundos)
+  useEffect(() => {
+    const status = caseDetail?.case?.status;
+    if (status !== "processing" && status !== "paid_processing") return;
+
+    const interval = setInterval(() => {
+      loadCase();
+      loadCaseEvents();
+    }, 10000); // 10 segundos
+
+    return () => clearInterval(interval);
+  }, [caseDetail?.case?.status, loadCase, loadCaseEvents]);
+
   const handleDownload = async (docId: string, fileName: string) => {
     setActionLoading(`download-${docId}`);
     try {

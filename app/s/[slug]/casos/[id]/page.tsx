@@ -150,6 +150,18 @@ export default function CaseDetailPage() {
     fetchCase();
   }, [fetchCase]);
 
+  // Polling automático quando caso está em processing (a cada 10 segundos)
+  useEffect(() => {
+    const status = caseDetail?.case?.status;
+    if (status !== "processing" && status !== "paid_processing") return;
+
+    const interval = setInterval(() => {
+      fetchCase();
+    }, 10000); // 10 segundos
+
+    return () => clearInterval(interval);
+  }, [caseDetail?.case?.status, fetchCase]);
+
   // Derivar downloadUrl de caseDetail (memoizado para evitar recálculos)
   const downloadUrl = useMemo(() => {
     if (!caseDetail) return undefined;
