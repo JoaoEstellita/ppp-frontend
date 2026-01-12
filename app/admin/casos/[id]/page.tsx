@@ -259,6 +259,16 @@ export default function AdminCaseDetailPage() {
 
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
 
+  // Renderizar mensagem de feedback
+  const messageElement = message ? (
+    <div className={`p-3 rounded text-sm ${
+      message.type === "success"
+        ? "bg-green-50 text-green-700"
+        : "bg-red-50 text-red-700"
+    }`}>
+      {message.text}
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-6">
@@ -284,15 +294,7 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Mensagem de feedback */}
-      {message !== null ? (
-        <div className={`p-3 rounded text-sm ${
-          message.type === "success"
-            ? "bg-green-50 text-green-700"
-            : "bg-red-50 text-red-700"
-        }`}>
-          {message.text}
-        </div>
-      ) : null}
+      {messageElement}
 
       {/* Grid de informações */}
       <div className="grid gap-6 md:grid-cols-2">
