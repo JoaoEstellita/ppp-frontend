@@ -7,7 +7,6 @@ import {
   createPaymentLink,
   devMarkCaseAsPaid,
   devAttachFakePdf,
-  retryCase,
   requestSupport,
   uploadPppInput,
   listCaseDocuments,
@@ -105,7 +104,6 @@ export default function CaseDetailPage() {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [attachingPdf, setAttachingPdf] = useState(false);
-  const [retrying, setRetrying] = useState(false);
   const [requestingSupport, setRequestingSupport] = useState(false);
   const [supportMessage, setSupportMessage] = useState("");
   const [supportSent, setSupportSent] = useState(false);
@@ -245,26 +243,6 @@ export default function CaseDetailPage() {
       }
     } finally {
       setAttachingPdf(false);
-    }
-  }, [slug, caseId, fetchCase]);
-
-  // Handler para retry
-  const handleRetry = useCallback(async () => {
-    if (!slug || !caseId) return;
-    try {
-      setRetrying(true);
-      setActionMessage(null);
-      const result = await retryCase(slug, caseId);
-      setActionMessage({ type: "success", text: result.message });
-      await fetchCase();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setActionMessage({ type: "error", text: err.message || "Não foi possível reprocessar." });
-      } else {
-        setActionMessage({ type: "error", text: "Não foi possível reprocessar." });
-      }
-    } finally {
-      setRetrying(false);
     }
   }, [slug, caseId, fetchCase]);
 

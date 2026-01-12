@@ -6,7 +6,6 @@ import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import {
   adminGetCase,
-  adminRetryCase,
   adminGetDocumentDownloadUrl,
   AdminCaseDetail,
   devMarkCaseAsPaid,
@@ -104,20 +103,6 @@ export default function AdminCaseDetailPage() {
     loadCase();
     loadCaseEvents();
   }, [loadCase, loadCaseEvents]);
-
-  const handleRetry = async () => {
-    setActionLoading("retry");
-    setFeedback(null);
-    try {
-      const result = await adminRetryCase(caseId);
-      setFeedback({ type: "success", text: String(result?.message ?? "Reprocessamento iniciado!") });
-      await loadCase();
-    } catch (err) {
-      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setActionLoading(null);
-    }
-  };
 
   const handleDownload = async (docId: string, fileName: string) => {
     setActionLoading(`download-${docId}`);
@@ -423,25 +408,24 @@ export default function AdminCaseDetailPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-sm font-semibold text-gray-600 mb-4">Ações Admin</h3>
         <div className="flex flex-wrap gap-3">
-          {/* Enviar para análise (n8n) */}
+          {/* Enviar/Reenviar para análise (n8n) */}
           {(caseData.status === "ready_to_process" || caseData.status === "error") && (
             <Button
               onClick={handleSubmitForAnalysis}
               disabled={actionLoading === "submit"}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {actionLoading === "submit" ? "Enviando..." : "Enviar para análise"}
+              {actionLoading === "submit" ? "Enviando..." : "Enviar para análise (N8N)"}
             </Button>
           )}
 
-          {/* Forçar reprocessamento - disponível em processing */}
-          {(caseData.status === "processing" || caseData.status === "paid_processing") && (
+          {/* Em processing: mostrar que está aguardando retorno */}
+          {(caseData.status === "processing" || caseData.status === "paid_processing") && !isStuck() && (
             <Button
-              onClick={handleRetry}
-              disabled={actionLoading === "retry"}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={true}
+              className="bg-gray-400 text-white cursor-not-allowed"
             >
-              {actionLoading === "retry" ? "Reprocessando..." : "Forçar reprocessar"}
+              Aguardando retorno do N8N...
             </Button>
           )}
 
@@ -498,11 +482,11 @@ export default function AdminCaseDetailPage() {
               )}
             </div>
             <Button
-              onClick={handleRetry}
-              disabled={actionLoading === "retry"}
+              onClick={handleSubmitForAnalysis}
+              disabled={actionLoading === "submit"}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              {actionLoading === "retry" ? "Reprocessando..." : "Reprocessar"}
+              {actionLoading === "submit" ? "Reenviando..." : "Reenviar para análise"}
             </Button>
           </div>
         </div>
