@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import {
@@ -65,6 +64,19 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 type FeedbackMessage = { type: "success" | "error"; text: string };
+
+function FeedbackMessageDisplay({ message }: { message: FeedbackMessage | null }) {
+  if (!message) return null;
+  return (
+    <div className={`p-3 rounded text-sm ${
+      message.type === "success"
+        ? "bg-green-50 text-green-700"
+        : "bg-red-50 text-red-700"
+    }`}>
+      {message.text}
+    </div>
+  );
+}
 
 export default function AdminCaseDetailPage() {
   const router = useRouter();
@@ -262,19 +274,6 @@ export default function AdminCaseDetailPage() {
 
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
 
-  // Renderização da mensagem de feedback
-  const renderMessage = (): React.ReactNode => {
-    if (!message) return null;
-    return (
-      <div className={`p-3 rounded text-sm ${
-        message.type === "success"
-          ? "bg-green-50 text-green-700"
-          : "bg-red-50 text-red-700"
-      }`}>
-        {message.text}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -300,7 +299,7 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Mensagem de feedback */}
-      {renderMessage()}
+      <FeedbackMessageDisplay message={message} />
 
       {/* Grid de informações */}
       <div className="grid gap-6 md:grid-cols-2">
