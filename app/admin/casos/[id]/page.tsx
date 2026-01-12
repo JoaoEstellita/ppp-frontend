@@ -65,6 +65,16 @@ function formatDate(dateStr: string | null | undefined): string {
 
 type FeedbackMessage = { type: "success" | "error"; text: string };
 
+// Type-guard para blindagem total contra unknown
+function isFeedbackMessage(v: unknown): v is FeedbackMessage {
+  if (typeof v !== "object" || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    (obj.type === "success" || obj.type === "error") &&
+    typeof obj.text === "string"
+  );
+}
+
 export default function AdminCaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -269,7 +279,7 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Mensagem de feedback */}
-      {feedback && (
+      {isFeedbackMessage(feedback) && (
         <div className={`p-3 rounded text-sm ${
           feedback.type === "success"
             ? "bg-green-50 text-green-700"
