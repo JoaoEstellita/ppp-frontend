@@ -74,6 +74,7 @@ export type FrontendWorker = {
 export type FrontendDocument = {
   id: string;
   type: string; // ex: 'PPP'
+  document_type?: string;
   fileName?: string;
   url?: string;
 };
