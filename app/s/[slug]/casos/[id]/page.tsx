@@ -165,9 +165,10 @@ export default function CaseDetailPage() {
   // Derivar downloadUrl de caseDetail (memoizado para evitar recálculos)
   const downloadUrl = useMemo(() => {
     if (!caseDetail) return undefined;
-    const pdfDoc = (caseDetail.case.documents ?? []).find((doc) =>
-      String(doc.type).toLowerCase().includes("ppp")
-    );
+    const pdfDoc = (caseDetail.case.documents ?? []).find((doc) => {
+      const type = String(doc.document_type ?? doc.type ?? "").toLowerCase();
+      return type === "ppp_result" || type === "ppp_output";
+    });
     return pdfDoc?.url ?? undefined;
   }, [caseDetail]);
 
