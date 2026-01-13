@@ -342,12 +342,25 @@ export default function CaseDetailPage() {
 
   // Verificar se tem documento PPP input
   const hasPppInput = useMemo(() => {
-    return caseDocuments.some(doc => doc.document_type === "ppp_input");
+    return caseDocuments.some((doc) => {
+      const type = (doc.document_type || (doc as { type?: string }).type || "").toLowerCase();
+      return type === "ppp_input";
+    });
+  }, [caseDocuments]);
+
+  const pppInputDoc = useMemo(() => {
+    return caseDocuments.find((doc) => {
+      const type = (doc.document_type || (doc as { type?: string }).type || "").toLowerCase();
+      return type === "ppp_input";
+    });
   }, [caseDocuments]);
 
   // Verificar se tem documento PPP output (resultado final)
   const pppOutputDoc = useMemo(() => {
-    return caseDocuments.find(doc => doc.document_type === "ppp_output");
+    return caseDocuments.find((doc) => {
+      const type = (doc.document_type || (doc as { type?: string }).type || "").toLowerCase();
+      return type === "ppp_result" || type === "ppp_output";
+    });
   }, [caseDocuments]);
 
   // Verificar se pode enviar para análise
@@ -472,7 +485,7 @@ export default function CaseDetailPage() {
               <DownloadPdfButton 
                 slug={slug} 
                 caseId={caseId} 
-                docId={caseDocuments.find(d => d.document_type === "ppp_input")?.id || ""}
+                docId={pppInputDoc?.id || ""}
               />
             )}
           </div>
@@ -541,14 +554,14 @@ export default function CaseDetailPage() {
               <div className="flex-1">
                 <p className="font-medium text-green-800">PDF anexado com sucesso</p>
                 <p className="text-sm text-green-600">
-                  {caseDocuments.find(d => d.document_type === "ppp_input")?.original_name || "ppp_input.pdf"}
+                  {pppInputDoc?.original_name || "ppp_input.pdf"}
                 </p>
               </div>
               <div className="flex gap-2">
                 <DownloadPdfButton 
                   slug={slug} 
                   caseId={caseId} 
-                  docId={caseDocuments.find(d => d.document_type === "ppp_input")?.id || ""}
+                  docId={pppInputDoc?.id || ""}
                 />
               </div>
             </div>
