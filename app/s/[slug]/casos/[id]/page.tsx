@@ -22,6 +22,20 @@ import { Badge } from "@/components/Badge";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
+type VerificationIssue = {
+  field?: string;
+  problem?: string;
+  severity?: "low" | "medium" | "high" | string;
+};
+
+type AnalysisBlock = {
+  blockId?: string;
+  title?: string;
+  isCompliant?: boolean;
+  analysis?: string;
+  issues?: string[];
+};
+
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
   awaiting_pdf: "Aguardando PDF",
@@ -52,6 +66,159 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
     default:
       return "default";
   }
+}
+
+function getClassificationLabel(value?: string | null) {
+  if (!value) return "Não informado";
+  switch (value) {
+    case "ATENDE_INTEGRALMENTE":
+      return "Atende integralmente";
+    case "POSSUI_INCONSISTENCIAS_SANAVEIS":
+      return "Possui inconsistências sanáveis";
+    case "NAO_POSSUI_VALIDADE_TECNICA":
+      return "Não possui validade técnica";
+    default:
+      return value;
+  }
+}
+
+function SeverityBadge({ severity }: { severity?: string }) {
+  const level = (severity || "low").toLowerCase();
+  const styles =
+    level === "high"
+      ? "bg-red-100 text-red-700"
+      : level === "medium"
+      ? "bg-yellow-100 text-yellow-700"
+      : "bg-green-100 text-green-700";
+  return (
+    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${styles}`}>
+      {severity || "low"}
+    </span>
+  );
+}
+
+function StatusPanel({
+  verificationOk,
+  verificationRisk,
+}: {
+  verificationOk?: boolean;
+  verificationRisk?: string;
+}) {
+  const risk = (verificationRisk || "low").toLowerCase();
+  const blocked = verificationOk === false || risk === "high";
+  const isReview = risk === "medium" && verificationOk !== false;
+  const badge = blocked
+    ? "BLOQUEADO POR CONFLITO"
+    : isReview
+    ? "EM REVISÃO"
+    : "APROVADO PARA EMISSÃO";
+  const subtitle = blocked
+    ? "Conflito entre dados informados e dados encontrados no documento (OCR)."
+    : isReview
+    ? "Revisão recomendada antes da emissão."
+    : "Validação automática sem conflitos críticos.";
+
+  const badgeStyle = blocked
+    ? "bg-red-100 text-red-700"
+    : isReview
+    ? "bg-yellow-100 text-yellow-700"
+    : "bg-green-100 text-green-700";
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 space-y-2">
+      <div className="flex items-center gap-3">
+        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${badgeStyle}`}>
+          {badge}
+        </span>
+        <p className="text-sm text-gray-600">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function ConflictList({
+  issues,
+  risk,
+  onRetry,
+}: {
+  issues: VerificationIssue[];
+  risk?: string;
+  onRetry?: () => void;
+}) {
+  if (!issues.length) return null;
+  const riskValue = (risk || "low").toLowerCase();
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-red-800">Conflitos detectados</h3>
+        <p className="text-xs text-red-600 mt-1">
+          Revise os campos abaixo antes de gerar o resultado final.
+        </p>
+      </div>
+      <div className="space-y-3">
+        {issues.map((issue, index) => (
+          <div key={`${issue.field || "field"}-${index}`} className="bg-white rounded-md p-3 border border-red-100">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-900">
+                {issue.field || "Campo não informado"}
+              </p>
+              <SeverityBadge severity={issue.severity} />
+            </div>
+            <p className="text-xs text-gray-600 mt-1">{issue.problem || "Problema não informado."}</p>
+          </div>
+        ))}
+      </div>
+      {riskValue === "high" && (
+        <Button onClick={onRetry} className="bg-red-600 hover:bg-red-700 text-white">
+          Reenviar com dados corretos
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function BlocksList({ blocks }: { blocks: AnalysisBlock[] }) {
+  if (!blocks.length) return null;
+  return (
+    <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <h3 className="text-sm font-semibold text-gray-600">Inconsistências por campo</h3>
+      <div className="grid gap-4 md:grid-cols-2">
+        {blocks.map((block, index) => {
+          const compliant = block.isCompliant !== false;
+          return (
+            <div
+              key={`${block.blockId || "block"}-${index}`}
+              className={`rounded-lg border p-4 space-y-2 ${
+                compliant ? "border-green-100 bg-green-50" : "border-red-200 bg-red-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {block.title || "Bloco sem título"}
+                  </p>
+                  {block.blockId && (
+                    <p className="text-xs text-gray-500">Bloco {block.blockId}</p>
+                  )}
+                </div>
+                <span className={`text-xs font-semibold ${compliant ? "text-green-700" : "text-red-700"}`}>
+                  {compliant ? "Conforme" : "Não conforme"}
+                </span>
+              </div>
+              {block.analysis && <p className="text-xs text-gray-700">{block.analysis}</p>}
+              {Array.isArray(block.issues) && block.issues.length > 0 && (
+                <ul className="text-xs text-gray-600 list-disc pl-4 space-y-1">
+                  {block.issues.map((issue, issueIndex) => (
+                    <li key={`${index}-${issueIndex}`}>{issue}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // Componente para botão de download de PDF
@@ -389,6 +556,37 @@ export default function CaseDetailPage() {
   const { case: caseRecord, worker, company, workflowLogs } = caseDetail;
   const status = caseRecord.status as CaseStatus;
   const statusLabel = STATUS_LABELS[status] ?? status;
+  const analysis = caseDetail.analysis ?? null;
+  const analysisPayload =
+    (analysis?.raw_ai_result ??
+      analysis?.extra_metadata ??
+      analysis?.results ??
+      analysis?.rules_result ??
+      {}) as Record<string, any>;
+  const verificationOk = analysisPayload.verification_ok ?? analysisPayload.verificationOk ?? undefined;
+  const verificationRisk = analysisPayload.verification_risk ?? analysisPayload.verificationRisk ?? undefined;
+  const verificationIssues = (analysisPayload.verification_issues ??
+    analysisPayload.verificationIssues ??
+    []) as VerificationIssue[];
+  const validationOk = analysisPayload.validation_ok ?? analysisPayload.validationOk ?? undefined;
+  const validationIssues = (analysisPayload.validation_issues ??
+    analysisPayload.validationIssues ??
+    []) as string[];
+  const analysisSummary =
+    analysisPayload.analysis_summary ??
+    analysisPayload.summary ??
+    analysis?.results?.summary ??
+    "";
+  const finalClassification =
+    analysisPayload.final_classification ??
+    analysisPayload.finalClassification ??
+    analysis?.final_classification ??
+    analysis?.finalClassification ??
+    null;
+  const analysisBlocks = (analysisPayload.analysis_blocks ??
+    analysisPayload.blocks ??
+    analysis?.results?.blocks ??
+    []) as AnalysisBlock[];
 
   return (
     <div className="space-y-6">
@@ -513,7 +711,7 @@ export default function CaseDetailPage() {
 
       {/* Upload de PDF - Disponível em awaiting_payment, awaiting_pdf e ready_to_process */}
       {(status === "awaiting_payment" || status === "awaiting_pdf" || status === "ready_to_process") && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div id="ppp-upload-section" className="bg-white rounded-lg shadow p-6 space-y-4">
           <div className="flex items-start gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
               status === "awaiting_pdf" ? "bg-blue-100" : "bg-gray-100"
@@ -745,6 +943,44 @@ export default function CaseDetailPage() {
               <p className="text-sm text-gray-600">PDF ainda não disponível.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {analysis && (
+        <div className="space-y-6">
+          <StatusPanel verificationOk={verificationOk} verificationRisk={verificationRisk} />
+
+          <ConflictList
+            issues={Array.isArray(verificationIssues) ? verificationIssues : []}
+            risk={verificationRisk}
+            onRetry={() => {
+              const target = document.getElementById("ppp-upload-section");
+              if (target) {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }}
+          />
+
+          {validationOk === false && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 space-y-3">
+              <h3 className="text-sm font-semibold text-yellow-800">Falha de validação técnica</h3>
+              <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
+                {(validationIssues ?? []).map((issue, index) => (
+                  <li key={`validation-${index}`}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg shadow p-6 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-600">Resumo da análise</h3>
+            <p className="text-sm text-gray-800">{analysisSummary || "Resumo não informado."}</p>
+            <p className="text-xs text-gray-500">
+              Classificação: {getClassificationLabel(finalClassification)}
+            </p>
+          </div>
+
+          <BlocksList blocks={Array.isArray(analysisBlocks) ? analysisBlocks : []} />
         </div>
       )}
 
