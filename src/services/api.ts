@@ -1246,6 +1246,13 @@ export type DownloadResponse = {
   expiresIn: number;
 };
 
+export type UpdateCaseDetailsPayload = {
+  workerName: string;
+  workerCPF: string;
+  companyName: string;
+  companyCNPJ: string;
+};
+
 /**
  * Upload do PDF do PPP (sindicato)
  */
@@ -1288,6 +1295,23 @@ export async function getDocumentDownloadUrl(
   const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/documents/${docId}/download`));
   const data = await handleJsonResponse(res);
   return data as DownloadResponse;
+}
+
+/**
+ * Atualiza dados cadastrais do caso (sindicato)
+ */
+export async function updateCaseDetails(
+  orgSlug: string,
+  caseId: string,
+  payload: UpdateCaseDetailsPayload
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/details`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
 }
 
 // ========== ADMIN CASES ==========
@@ -1373,6 +1397,22 @@ export async function adminGetDocumentDownloadUrl(
   const res = await apiFetch(`/admin/cases/${caseId}/documents/${docId}/download`);
   const data = await handleJsonResponse(res);
   return data as DownloadResponse;
+}
+
+/**
+ * Atualiza dados cadastrais do caso (admin)
+ */
+export async function adminUpdateCaseDetails(
+  caseId: string,
+  payload: UpdateCaseDetailsPayload
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/cases/${caseId}/details`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
 }
 
 

@@ -58,6 +58,7 @@ export default function LoginPage() {
         {/* Botão Google */}
         <Button
           onClick={signInWithGoogle}
+          variant="outline"
           className="w-full flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
           disabled={loading}
         >

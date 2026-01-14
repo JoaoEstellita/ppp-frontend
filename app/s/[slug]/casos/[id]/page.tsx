@@ -11,6 +11,7 @@ import {
   uploadPppInput,
   listCaseDocuments,
   getDocumentDownloadUrl,
+  updateCaseDetails,
   submitCase,
   CaseDetail,
   CaseStatus,
@@ -53,10 +54,26 @@ function safeGet(obj: any, path: string): any {
   return path.split(".").reduce((acc, key) => (acc ? acc[key] : undefined), obj);
 }
 
+function normalizeText(value?: string | null) {
+  return (value ?? "").toString().trim().toLowerCase();
+}
+
+function normalizeDigits(value?: string | null) {
+  return (value ?? "").toString().replace(/\D/g, "");
+}
+
+function pickFirstString(obj: any, paths: string[]) {
+  for (const path of paths) {
+    const value = safeGet(obj, path);
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
   awaiting_pdf: "Aguardando PDF",
-  ready_to_process: "Pronto para análise",
+  ready_to_process: "Pronto para an+?lise",
   processing: "Processando",
   paid_processing: "Pago / Processando",
   done: "Concluido",
@@ -86,14 +103,14 @@ function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "dan
 }
 
 function getClassificationLabel(value?: string | null) {
-  if (!value) return "Não informado";
+  if (!value) return "N+?o informado";
   switch (value) {
     case "ATENDE_INTEGRALMENTE":
       return "Atende integralmente";
     case "POSSUI_INCONSISTENCIAS_SANAVEIS":
-      return "Possui inconsistências sanáveis";
+      return "Possui inconsist+?ncias san+?veis";
     case "NAO_POSSUI_VALIDADE_TECNICA":
-      return "Não possui validade técnica";
+      return "N+?o possui validade t+?cnica";
     default:
       return value;
   }
@@ -123,12 +140,12 @@ function StatusPanel({
 }) {
   const badge =
     status === "validation_failed"
-      ? "FALHA DE VALIDAÇÃO TÉCNICA"
+      ? "FALHA DE VALIDA+?+?O T+?CNICA"
       : status === "blocked"
       ? "BLOQUEADO POR CONFLITO"
       : status === "review"
-      ? "EM REVISÃO"
-      : "APROVADO PARA EMISSÃO";
+      ? "EM REVIS+?O"
+      : "APROVADO PARA EMISS+?O";
   const badgeStyle =
     status === "blocked"
       ? "bg-red-100 text-red-700"
@@ -173,11 +190,11 @@ function ConflictList({
           <div key={`${issue.field || "field"}-${index}`} className="bg-white rounded-md p-3 border border-red-100">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-900">
-                {issue.field || "Campo não informado"}
+                {issue.field || "Campo n+?o informado"}
               </p>
               <SeverityBadge severity={issue.severity} />
             </div>
-            <p className="text-xs text-gray-600 mt-1">{issue.problem || "Problema não informado."}</p>
+            <p className="text-xs text-gray-600 mt-1">{issue.problem || "Problema n+?o informado."}</p>
           </div>
         ))}
       </div>
@@ -194,7 +211,7 @@ function BlocksList({ blocks }: { blocks: AnalysisBlock[] }) {
   if (!blocks.length) return null;
   return (
     <div className="bg-white rounded-lg shadow p-6 space-y-4">
-      <h3 className="text-sm font-semibold text-gray-600">Inconsistências por campo</h3>
+      <h3 className="text-sm font-semibold text-gray-600">Inconsist+?ncias por campo</h3>
       <div className="grid gap-4 md:grid-cols-2">
         {blocks.map((block, index) => {
           const compliant = block.isCompliant !== false;
@@ -208,14 +225,14 @@ function BlocksList({ blocks }: { blocks: AnalysisBlock[] }) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
-                    {block.title || "Bloco sem título"}
+                    {block.title || "Bloco sem t+?tulo"}
                   </p>
                   {block.blockId && (
                     <p className="text-xs text-gray-500">Bloco {block.blockId}</p>
                   )}
                 </div>
                 <span className={`text-xs font-semibold ${compliant ? "text-green-700" : "text-red-700"}`}>
-                  {compliant ? "Conforme" : "Não conforme"}
+                  {compliant ? "Conforme" : "N+?o conforme"}
                 </span>
               </div>
               {block.analysis && <p className="text-xs text-gray-700">{block.analysis}</p>}
@@ -234,7 +251,7 @@ function BlocksList({ blocks }: { blocks: AnalysisBlock[] }) {
   );
 }
 
-// Componente para botão de download de PDF
+// Componente para bot+?o de download de PDF
 function DownloadPdfButton({ slug, caseId, docId }: { slug: string; caseId: string; docId: string }) {
   const [downloading, setDownloading] = useState(false);
 
@@ -289,19 +306,26 @@ export default function CaseDetailPage() {
   const [supportSent, setSupportSent] = useState(false);
   const [showSupportForm, setShowSupportForm] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [detailsMessage, setDetailsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsDirty, setDetailsDirty] = useState(false);
+  const [workerNameEdit, setWorkerNameEdit] = useState("");
+  const [workerCpfEdit, setWorkerCpfEdit] = useState("");
+  const [companyNameEdit, setCompanyNameEdit] = useState("");
+  const [companyCnpjEdit, setCompanyCnpjEdit] = useState("");
   
   // Estados para upload de PDF
   const [uploadingPdf, setUploadingPdf] = useState(false);
   
-  // Estado para submit para análise
+  // Estado para submit para an+?lise
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caseDocuments, setCaseDocuments] = useState<CaseDocument[]>([]);
 
-  // Verificar acesso do usuário (platform_admin)
+  // Verificar acesso do usu+?rio (platform_admin)
   const { isPlatformAdmin } = useOrgAccess();
 
-  // Detectar ambiente de desenvolvimento + verificar se é platform_admin
+  // Detectar ambiente de desenvolvimento + verificar se +? platform_admin
   const isDevModeEnabled = process.env.NEXT_PUBLIC_DEV_MODE === "true";
   const showDevTools = isPlatformAdmin && isDevModeEnabled;
 
@@ -330,7 +354,7 @@ export default function CaseDetailPage() {
     fetchCase();
   }, [fetchCase]);
 
-  // Polling automático quando caso está em processing (a cada 10 segundos)
+  // Polling autom+?tico quando caso est+? em processing (a cada 10 segundos)
   useEffect(() => {
     const status = caseDetail?.case?.status;
     if (status !== "processing" && status !== "paid_processing") return;
@@ -342,7 +366,7 @@ export default function CaseDetailPage() {
     return () => clearInterval(interval);
   }, [caseDetail?.case?.status, fetchCase]);
 
-  // Derivar downloadUrl de caseDetail (memoizado para evitar recálculos)
+  // Derivar downloadUrl de caseDetail (memoizado para evitar rec+?lculos)
   const downloadUrl = useMemo(() => {
     if (!caseDetail) return undefined;
     const pdfDoc = (caseDetail.case.documents ?? []).find((doc) => {
@@ -406,7 +430,7 @@ export default function CaseDetailPage() {
       setMarkingPaid(true);
       setError(null);
       await devMarkCaseAsPaid(slug, caseId);
-      // Recarrega o caso após marcar como pago
+      // Recarrega o caso ap+?s marcar como pago
       await fetchCase();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -426,7 +450,7 @@ export default function CaseDetailPage() {
       setAttachingPdf(true);
       setError(null);
       await devAttachFakePdf(slug, caseId);
-      // Recarrega o caso após anexar PDF
+      // Recarrega o caso ap+?s anexar PDF
       await fetchCase();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -446,14 +470,14 @@ export default function CaseDetailPage() {
       setRequestingSupport(true);
       setActionMessage(null);
       await requestSupport(slug, caseId, supportMessage);
-      setActionMessage({ type: "success", text: "Solicitação de suporte enviada!" });
+      setActionMessage({ type: "success", text: "Solicita+?+?o de suporte enviada!" });
       setSupportSent(true);
       setShowSupportForm(false);
     } catch (err) {
       if (err instanceof ApiError) {
-        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar solicitação." });
+        setActionMessage({ type: "error", text: err.message || "N+?o foi poss+?vel enviar solicita+?+?o." });
       } else {
-        setActionMessage({ type: "error", text: "Não foi possível enviar solicitação." });
+        setActionMessage({ type: "error", text: "N+?o foi poss+?vel enviar solicita+?+?o." });
       }
     } finally {
       setRequestingSupport(false);
@@ -473,16 +497,16 @@ export default function CaseDetailPage() {
       await fetchCase();
     } catch (err) {
       if (err instanceof ApiError) {
-        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar o PDF." });
+        setActionMessage({ type: "error", text: err.message || "N+?o foi poss+?vel enviar o PDF." });
       } else {
-        setActionMessage({ type: "error", text: "Não foi possível enviar o PDF." });
+        setActionMessage({ type: "error", text: "N+?o foi poss+?vel enviar o PDF." });
       }
     } finally {
       setUploadingPdf(false);
     }
   }, [slug, caseId, selectedFile, fetchCase]);
 
-  // Handler para enviar para análise (n8n)
+  // Handler para enviar para an+?lise (n8n)
   const handleSubmitForAnalysis = useCallback(async () => {
     if (!slug || !caseId) return;
     try {
@@ -490,19 +514,44 @@ export default function CaseDetailPage() {
       setActionMessage(null);
       const result = await submitCase(slug, caseId);
       if (result.ok) {
-        setActionMessage({ type: "success", text: result.message || "Enviado para análise!" });
+        setActionMessage({ type: "success", text: result.message || "Enviado para an+?lise!" });
         await fetchCase();
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar para análise." });
+        setActionMessage({ type: "error", text: err.message || "N+?o foi poss+?vel enviar para an+?lise." });
       } else {
-        setActionMessage({ type: "error", text: "Não foi possível enviar para análise." });
+        setActionMessage({ type: "error", text: "N+?o foi poss+?vel enviar para an+?lise." });
       }
     } finally {
       setSubmitting(false);
     }
   }, [slug, caseId, fetchCase]);
+
+  const handleSaveDetails = useCallback(async () => {
+    if (!slug || !caseId) return;
+    try {
+      setSavingDetails(true);
+      setDetailsMessage(null);
+      await updateCaseDetails(slug, caseId, {
+        workerName: workerNameEdit.trim(),
+        workerCPF: workerCpfEdit.trim(),
+        companyName: companyNameEdit.trim(),
+        companyCNPJ: companyCnpjEdit.trim(),
+      });
+      setDetailsDirty(false);
+      setDetailsMessage({ type: "success", text: "Dados atualizados com sucesso." });
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setDetailsMessage({ type: "error", text: err.message || "Nao foi possivel salvar os dados." });
+      } else {
+        setDetailsMessage({ type: "error", text: "Nao foi possivel salvar os dados." });
+      }
+    } finally {
+      setSavingDetails(false);
+    }
+  }, [slug, caseId, workerNameEdit, workerCpfEdit, companyNameEdit, companyCnpjEdit, fetchCase]);
 
   // Carregar documentos do caso
   const fetchDocuments = useCallback(async () => {
@@ -511,7 +560,7 @@ export default function CaseDetailPage() {
       const docs = await listCaseDocuments(slug, caseId);
       setCaseDocuments(docs);
     } catch {
-      // Silenciar erro - não é crítico
+      // Silenciar erro - n+?o +? cr+?tico
     }
   }, [slug, caseId]);
 
@@ -520,6 +569,18 @@ export default function CaseDetailPage() {
       fetchDocuments();
     }
   }, [caseDetail, fetchDocuments]);
+
+  useEffect(() => {
+    if (!caseDetail || detailsDirty) return;
+    const cadastroWorkerName = caseDetail.worker?.name ?? caseDetail.case.worker?.name ?? "";
+    const cadastroWorkerCpf = caseDetail.worker?.cpf ?? caseDetail.case.worker?.cpf ?? "";
+    const cadastroCompanyName = caseDetail.company?.name ?? caseDetail.case.company?.name ?? "";
+    const cadastroCompanyCnpj = caseDetail.company?.cnpj ?? caseDetail.case.company?.cnpj ?? "";
+    setWorkerNameEdit(cadastroWorkerName);
+    setWorkerCpfEdit(cadastroWorkerCpf);
+    setCompanyNameEdit(cadastroCompanyName);
+    setCompanyCnpjEdit(cadastroCompanyCnpj);
+  }, [caseDetail, detailsDirty]);
 
   // Verificar se tem documento PPP input
   const hasPppInput = useMemo(() => {
@@ -544,13 +605,13 @@ export default function CaseDetailPage() {
     });
   }, [caseDocuments]);
 
-  // Verificar se pode enviar para análise
+  // Verificar se pode enviar para an+?lise
   const canSubmitForAnalysis = useMemo(() => {
     const status = caseDetail?.case.status as CaseStatus;
     return (status === "ready_to_process" || status === "error") && hasPppInput;
   }, [caseDetail?.case.status, hasPppInput]);
 
-  // Renderização condicional - APÓS todos os hooks
+  // Renderiza+?+?o condicional - AP+?S todos os hooks
   if (loading) {
     return <div className="text-gray-600">Carregando caso...</div>;
   }
@@ -576,12 +637,29 @@ export default function CaseDetailPage() {
       analysis?.results ??
       analysis?.rules_result ??
       {}) as Record<string, any>;
-  const validationOk = analysisPayload.validation_ok ?? analysisPayload.validationOk ?? undefined;
-  const validationIssues = safeParseJsonArray<string>(analysisPayload.validation_issues);
-  const verifierOk = analysisPayload.verifier_ok ?? analysisPayload.verifierOk ?? undefined;
-  const verifierRisk = analysisPayload.verifier_risk ?? analysisPayload.verifierRisk ?? "unknown";
+  const validationOk =
+    analysisPayload.validation_ok ??
+    analysisPayload.validationOk ??
+    analysisPayload.verification_ok ??
+    undefined;
+  const validationIssues = safeParseJsonArray<string>(
+    analysisPayload.validation_issues ?? analysisPayload.validationIssues
+  );
+  const verifierOk =
+    analysisPayload.verifier_ok ??
+    analysisPayload.verifierOk ??
+    analysisPayload.verification_ok ??
+    undefined;
+  const verifierRisk =
+    analysisPayload.verifier_risk ??
+    analysisPayload.verifierRisk ??
+    analysisPayload.verification_risk ??
+    "unknown";
   const verifierIssues = safeParseJsonArray<VerificationIssue>(
-    analysisPayload.verifier_issues ?? analysisPayload.verifierIssues
+    analysisPayload.verifier_issues ??
+      analysisPayload.verifierIssues ??
+      analysisPayload.verification_issues ??
+      analysisPayload.verificationIssues
   );
   const verifierMustFix = safeParseJsonArray<string>(
     analysisPayload.verifier_must_fix ?? analysisPayload.verifierMustFix
@@ -603,6 +681,90 @@ export default function CaseDetailPage() {
       analysisPayload.analysis_blocks ??
       analysisPayload.blocks
   );
+  const extractedWorkerName = pickFirstString(analysisPayload, [
+    "worker_name",
+    "workerName",
+    "worker.name",
+    "results.worker_name",
+    "results.worker.name",
+  ]);
+  const extractedWorkerCpf = pickFirstString(analysisPayload, [
+    "worker_cpf",
+    "workerCPF",
+    "worker.cpf",
+    "results.worker_cpf",
+    "results.worker.cpf",
+  ]);
+  const extractedCompanyName = pickFirstString(analysisPayload, [
+    "company_name",
+    "companyName",
+    "employer_name",
+    "company.name",
+    "employer.name",
+    "results.company_name",
+    "results.company.name",
+  ]);
+  const extractedCompanyCnpj = pickFirstString(analysisPayload, [
+    "company_cnpj",
+    "companyCNPJ",
+    "employer_cnpj",
+    "company.cnpj",
+    "employer.cnpj",
+    "results.company_cnpj",
+    "results.company.cnpj",
+  ]);
+  const cadastroWorkerName = worker?.name ?? caseRecord.worker?.name ?? "";
+  const cadastroWorkerCpf = worker?.cpf ?? caseRecord.worker?.cpf ?? "";
+  const cadastroCompanyName = company?.name ?? caseRecord.company?.name ?? "";
+  const cadastroCompanyCnpj = company?.cnpj ?? caseRecord.company?.cnpj ?? "";
+  const conflictItems: Array<{ label: string; cadastro: string; extraido: string }> = [];
+  if (
+    extractedWorkerName &&
+    cadastroWorkerName &&
+    normalizeText(extractedWorkerName) !== normalizeText(cadastroWorkerName)
+  ) {
+    conflictItems.push({
+      label: "Nome do trabalhador",
+      cadastro: cadastroWorkerName,
+      extraido: extractedWorkerName,
+    });
+  }
+  if (
+    extractedWorkerCpf &&
+    cadastroWorkerCpf &&
+    normalizeDigits(extractedWorkerCpf) !== normalizeDigits(cadastroWorkerCpf)
+  ) {
+    conflictItems.push({
+      label: "CPF do trabalhador",
+      cadastro: cadastroWorkerCpf,
+      extraido: extractedWorkerCpf,
+    });
+  }
+  if (
+    extractedCompanyName &&
+    cadastroCompanyName &&
+    normalizeText(extractedCompanyName) !== normalizeText(cadastroCompanyName)
+  ) {
+    conflictItems.push({
+      label: "Empresa",
+      cadastro: cadastroCompanyName,
+      extraido: extractedCompanyName,
+    });
+  }
+  if (
+    extractedCompanyCnpj &&
+    cadastroCompanyCnpj &&
+    normalizeDigits(extractedCompanyCnpj) !== normalizeDigits(cadastroCompanyCnpj)
+  ) {
+    conflictItems.push({
+      label: "CNPJ da empresa",
+      cadastro: cadastroCompanyCnpj,
+      extraido: extractedCompanyCnpj,
+    });
+  }
+  const hasExtractedData = Boolean(
+    extractedWorkerName || extractedWorkerCpf || extractedCompanyName || extractedCompanyCnpj
+  );
   const hasValidationFailure = validationOk === false;
   const hasVerifierBlock =
     verifierOk === false ||
@@ -620,12 +782,12 @@ export default function CaseDetailPage() {
     ? "review"
     : "approved";
   const statusSubtitle = hasValidationFailure
-    ? "Não foi possível gerar o parecer por inconsistência ou ausência de dados mínimos."
+    ? "Nao foi possivel gerar o parecer por inconsistencia ou ausencia de dados minimos."
     : hasVerifierBlock
-    ? "Há contradição clara entre dados informados e o que foi encontrado no documento (OCR)."
+    ? "Ha contradicao clara entre dados informados e o documento apresentado."
     : isReview
-    ? "Pode haver OCR incompleto; recomendamos revisar ou reenviar para melhorar a leitura."
-    : "Validação automática concluída sem conflitos críticos.";
+    ? "Recomendamos revisar ou reenviar para melhorar a conferencia."
+    : "Analise concluida sem conflitos criticos.";
 
   return (
     <div className="space-y-6">
@@ -667,11 +829,11 @@ export default function CaseDetailPage() {
             </a>
           )}
           
-          {/* Botão DEV para simular pagamento (somente platform_admin + DEV mode) */}
+          {/* Bot+?o DEV para simular pagamento (somente platform_admin + DEV mode) */}
           {showDevTools && (
             <div className="mt-4 pt-4 border-t border-dashed border-orange-300">
               <p className="text-xs text-orange-600 mb-2">
-                🛠️ Modo desenvolvimento (Admin)
+                ????? Modo desenvolvimento (Admin)
               </p>
               <Button
                 onClick={handleDevMarkPaid}
@@ -740,15 +902,15 @@ export default function CaseDetailPage() {
               </svg>
             )}
             <span className={`text-sm ${(status === "processing" || status === "done") ? "text-green-700" : "text-gray-600"}`}>
-              {status === "done" ? "Análise concluída" : 
+              {status === "done" ? "An+?lise conclu+?da" : 
                (status === "processing" || status === "paid_processing") ? "Em processamento" : 
-               "Aguardando envio para análise"}
+               "Aguardando envio para an+?lise"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Upload de PDF - Disponível em awaiting_payment, awaiting_pdf e ready_to_process */}
+      {/* Upload de PDF - Dispon+?vel em awaiting_payment, awaiting_pdf e ready_to_process */}
       {(status === "awaiting_payment" || status === "awaiting_pdf" || status === "ready_to_process") && (
         <div id="ppp-upload-section" className="bg-white rounded-lg shadow p-6 space-y-4">
           <div className="flex items-start gap-3">
@@ -765,7 +927,7 @@ export default function CaseDetailPage() {
               </h3>
               <p className="text-sm text-gray-600 mt-1">
                 {status === "awaiting_payment" 
-                  ? "Você pode anexar o PDF agora. O processamento só começa após a confirmação do pagamento."
+                  ? "Voc+? pode anexar o PDF agora. O processamento s+? come+?a ap+?s a confirma+?+?o do pagamento."
                   : "O pagamento foi confirmado. Envie o PDF do PPP para iniciar o processamento."
                 }
               </p>
@@ -805,7 +967,7 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          {/* Área de upload (sempre visível para permitir substituição) */}
+          {/* +?rea de upload (sempre vis+?vel para permitir substitui+?+?o) */}
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             <input
               type="file"
@@ -856,7 +1018,7 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* Status ready_to_process - Pronto para enviar para análise */}
+      {/* Status ready_to_process - Pronto para enviar para an+?lise */}
       {status === "ready_to_process" && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-4">
           <div className="flex items-start gap-3">
@@ -866,9 +1028,9 @@ export default function CaseDetailPage() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-green-800">Pronto para análise!</h3>
+              <h3 className="text-lg font-semibold text-green-800">Pronto para an+?lise!</h3>
               <p className="text-sm text-green-600 mt-1">
-                Pagamento confirmado e PDF anexado. Clique no botão abaixo para enviar para processamento.
+                Pagamento confirmado e PDF anexado. Clique no bot+?o abaixo para enviar para processamento.
               </p>
             </div>
           </div>
@@ -899,7 +1061,7 @@ export default function CaseDetailPage() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Enviar para análise
+                Enviar para an+?lise
               </span>
             )}
           </Button>
@@ -915,20 +1077,20 @@ export default function CaseDetailPage() {
             <div>
               <h3 className="text-lg font-semibold text-blue-900">PPP em processamento</h3>
               <p className="text-sm text-blue-700 mt-1">
-                Seu PPP foi enviado para análise e está sendo processado.
+                Seu PPP foi enviado para an+?lise e est+? sendo processado.
               </p>
               <p className="text-sm text-blue-600 mt-2">
-                Aguarde a conclusão. Você será notificado quando o resultado estiver disponível.
+                Aguarde a conclus+?o. Voc+? ser+? notificado quando o resultado estiver dispon+?vel.
                 Este processo pode levar alguns minutos.
               </p>
             </div>
           </div>
           
-          {/* Botão DEV para anexar PDF fake (somente platform_admin + DEV mode) */}
+          {/* Bot+?o DEV para anexar PDF fake (somente platform_admin + DEV mode) */}
           {showDevTools && (
             <div className="mt-4 pt-4 border-t border-dashed border-orange-300">
               <p className="text-xs text-orange-600 mb-2">
-                🛠️ Modo desenvolvimento (Admin)
+                ????? Modo desenvolvimento (Admin)
               </p>
               <Button
                 onClick={handleDevAttachPdf}
@@ -951,9 +1113,9 @@ export default function CaseDetailPage() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-green-800">PPP Concluído!</h3>
+              <h3 className="text-lg font-semibold text-green-800">PPP Conclu+?do!</h3>
               <p className="text-sm text-green-600 mt-1">
-                O processamento foi concluído com sucesso. Baixe o PDF do resultado abaixo.
+                O processamento foi conclu+?do com sucesso. Baixe o PDF do resultado abaixo.
               </p>
             </div>
           </div>
@@ -979,7 +1141,7 @@ export default function CaseDetailPage() {
                 Baixar PDF do PPP
               </a>
             ) : (
-              <p className="text-sm text-gray-600">PDF ainda não disponível.</p>
+              <p className="text-sm text-gray-600">PDF ainda n+?o dispon+?vel.</p>
             )}
           </div>
         </div>
@@ -989,28 +1151,39 @@ export default function CaseDetailPage() {
         <div className="space-y-6">
           {hasValidationFailure ? (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 space-y-3">
-              <h3 className="text-sm font-semibold text-yellow-800">FALHA DE VALIDAÇÃO TÉCNICA</h3>
+              <h3 className="text-sm font-semibold text-yellow-800">FALHA DE VALIDACAO TECNICA</h3>
               <p className="text-xs text-yellow-700">
-                Não foi possível gerar o parecer por inconsistência ou ausência de dados mínimos.
+                Nao foi possivel gerar o parecer por inconsistencia ou ausencia de dados minimos.
               </p>
-              <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
-                {(validationIssues ?? []).map((issue, index) => (
-                  <li key={`validation-${index}`}>{issue}</li>
-                ))}
-              </ul>
-            </div>
+                <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
+                  {(validationIssues ?? []).map((issue, index) => (
+                    <li key={`validation-${index}`}>{issue}</li>
+                  ))}
+                </ul>
+                <Button
+                  onClick={() => {
+                    const target = document.getElementById("ppp-upload-section");
+                    if (target) {
+                      target.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                >
+                  Reenviar PPP
+                </Button>
+              </div>
           ) : hasVerifierBlock ? (
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-red-800">BLOQUEADO POR CONFLITO</h3>
                 <p className="text-xs text-red-600 mt-1">
-                  Há contradição clara entre dados informados e o que foi encontrado no documento (OCR).
+                  Existe conflito entre dados informados e o documento apresentado.
                 </p>
               </div>
 
-              {verifierMustFix.length > 0 && (
-                <div className="bg-white rounded-md p-3 border border-red-100">
-                  <p className="text-xs font-semibold text-red-700 mb-2">Itens obrigatórios para corrigir</p>
+                {verifierMustFix.length > 0 && (
+                  <div className="bg-white rounded-md p-3 border border-red-100">
+                  <p className="text-xs font-semibold text-red-700 mb-2">Itens obrigatorios para corrigir</p>
                   <ul className="text-xs text-red-700 list-disc pl-4 space-y-1">
                     {verifierMustFix.map((item, index) => (
                       <li key={`must-fix-${index}`}>{item}</li>
@@ -1025,11 +1198,11 @@ export default function CaseDetailPage() {
                     <div key={`${issue.field || "field"}-${index}`} className="bg-white rounded-md p-3 border border-red-100">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-gray-900">
-                          {issue.field || "Campo não informado"}
+                          {issue.field || "Campo n+?o informado"}
                         </p>
                         <SeverityBadge severity={issue.severity} />
                       </div>
-                      <p className="text-xs text-gray-600 mt-1">{issue.problem || "Problema não informado."}</p>
+                      <p className="text-xs text-gray-600 mt-1">{issue.problem || "Problema n+?o informado."}</p>
                     </div>
                   ))}
                 </div>
@@ -1049,32 +1222,137 @@ export default function CaseDetailPage() {
             </div>
           ) : isReview ? (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 space-y-2">
-              <h3 className="text-sm font-semibold text-orange-800">EM REVISÃO</h3>
+              <h3 className="text-sm font-semibold text-orange-800">EM REVISAO</h3>
               <p className="text-xs text-orange-700">
-                Pode haver OCR incompleto; recomendamos revisar ou reenviar para melhorar a leitura.
+                Recomendamos revisar ou reenviar para melhorar a conferencia.
               </p>
             </div>
           ) : (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-2">
-              <h3 className="text-sm font-semibold text-green-800">APROVADO PARA EMISSÃO</h3>
-              <p className="text-xs text-green-700">Validação automática concluída sem conflitos críticos.</p>
+              <h3 className="text-sm font-semibold text-green-800">APROVADO PARA EMISSAO</h3>
+              <p className="text-xs text-green-700">Analise concluida sem conflitos criticos.</p>
             </div>
           )}
 
+          {(hasExtractedData || conflictItems.length > 0) && (
+            <div className="bg-white rounded-lg shadow p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700">Conflitos de dados do cadastro</h3>
+                <p className="text-xs text-gray-500">
+                  Comparacao entre o cadastro do caso e os dados encontrados no documento.
+                </p>
+              </div>
+              {conflictItems.length > 0 ? (
+                <div className="space-y-3">
+                  {conflictItems.map((item, index) => (
+                    <div key={`${item.label}-${index}`} className="border border-red-100 rounded-md p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-gray-900">{item.label}</p>
+                        <span className="text-xs font-semibold text-red-700">Divergencia encontrada</span>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-600 space-y-1">
+                        <p>
+                          <span className="font-semibold">Cadastro:</span> {item.cadastro}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Documento:</span> {item.extraido}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-600">Nenhuma divergencia encontrada.</p>
+              )}
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg shadow p-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Correcoes de dados do cadastro</h3>
+              <p className="text-xs text-gray-500">
+                Atualize os dados abaixo caso identifique divergencias.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-xs text-gray-600">
+                Nome do trabalhador
+                <input
+                  value={workerNameEdit}
+                  onChange={(event) => {
+                    setWorkerNameEdit(event.target.value);
+                    setDetailsDirty(true);
+                  }}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs text-gray-600">
+                CPF
+                <input
+                  value={workerCpfEdit}
+                  onChange={(event) => {
+                    setWorkerCpfEdit(event.target.value);
+                    setDetailsDirty(true);
+                  }}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs text-gray-600">
+                Empresa
+                <input
+                  value={companyNameEdit}
+                  onChange={(event) => {
+                    setCompanyNameEdit(event.target.value);
+                    setDetailsDirty(true);
+                  }}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs text-gray-600">
+                CNPJ
+                <input
+                  value={companyCnpjEdit}
+                  onChange={(event) => {
+                    setCompanyCnpjEdit(event.target.value);
+                    setDetailsDirty(true);
+                  }}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            {detailsMessage && (
+              <div
+                className={`text-xs px-3 py-2 rounded ${
+                  detailsMessage.type === "success"
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {detailsMessage.text}
+              </div>
+            )}
+            <div>
+              <Button
+                onClick={handleSaveDetails}
+                disabled={savingDetails || !detailsDirty}
+                className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+              >
+                {savingDetails ? "Salvando..." : "Salvar correcoes"}
+              </Button>
+            </div>
+          </div>
+
           <div className="bg-white rounded-lg shadow p-6 space-y-3">
             {(hasValidationFailure || hasVerifierBlock) && (
-              <p className="text-xs text-gray-500">Análise preliminar (pode estar incompleta)</p>
+              <p className="text-xs text-gray-500">Analise preliminar (pode estar incompleta)</p>
             )}
-            <h3 className="text-sm font-semibold text-gray-600">Resumo da análise</h3>
-            <p className="text-sm text-gray-800">{analysisSummary || "Resumo não informado."}</p>
+            <h3 className="text-sm font-semibold text-gray-600">Resumo da an+?lise</h3>
+            <p className="text-sm text-gray-800">{analysisSummary || "Resumo n+?o informado."}</p>
             <p className="text-xs text-gray-500">
-              Classificação: {getClassificationLabel(finalClassification)}
+              Classifica+?+?o: {getClassificationLabel(finalClassification)}
             </p>
           </div>
 
-          {(hasValidationFailure || hasVerifierBlock) && (
-            <p className="text-xs text-gray-500">Análise preliminar (pode estar incompleta)</p>
-          )}
           <BlocksList blocks={Array.isArray(analysisBlocks) ? analysisBlocks : []} />
         </div>
       )}
@@ -1090,7 +1368,7 @@ export default function CaseDetailPage() {
             <div>
               <h3 className="text-lg font-semibold text-red-800">Erro no processamento</h3>
               <p className="text-sm text-red-600 mt-1">
-                Ocorreu um erro ao processar o PPP. {hasPppInput ? "Você pode tentar novamente ou solicitar ajuda do suporte." : "Envie o PDF do PPP para tentar novamente."}
+                Ocorreu um erro ao processar o PPP. {hasPppInput ? "Voc+? pode tentar novamente ou solicitar ajuda do suporte." : "Envie o PDF do PPP para tentar novamente."}
               </p>
             </div>
           </div>
@@ -1106,7 +1384,7 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          {/* Se não tem PDF input, mostrar área de upload */}
+          {/* Se n+?o tem PDF input, mostrar +?rea de upload */}
           {!hasPppInput && (
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <input
@@ -1148,7 +1426,7 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          {/* Botões de ação - só mostra submit/retry se tem PDF input */}
+          {/* Bot+?es de a+?+?o - s+? mostra submit/retry se tem PDF input */}
           <div className="flex flex-wrap gap-3">
             {hasPppInput && (
               <Button
@@ -1186,7 +1464,7 @@ export default function CaseDetailPage() {
             )}
           </div>
 
-          {/* Formulário de suporte */}
+          {/* Formul+?rio de suporte */}
           {showSupportForm && !supportSent && (
             <div className="border-t pt-4 space-y-3">
               <label className="block text-sm font-medium text-gray-700">
@@ -1238,3 +1516,4 @@ export default function CaseDetailPage() {
     </div>
   );
 }
+
