@@ -115,31 +115,28 @@ function SeverityBadge({ severity }: { severity?: string }) {
 }
 
 function StatusPanel({
-  verificationOk,
-  verificationRisk,
+  status,
+  subtitle,
 }: {
-  verificationOk?: boolean;
-  verificationRisk?: string;
+  status: "blocked" | "validation_failed" | "review" | "approved";
+  subtitle: string;
 }) {
-  const risk = (verificationRisk || "low").toLowerCase();
-  const blocked = verificationOk === false || risk === "high";
-  const isReview = risk === "medium" && verificationOk !== false;
-  const badge = blocked
-    ? "BLOQUEADO POR CONFLITO"
-    : isReview
-    ? "EM REVISÃO"
-    : "APROVADO PARA EMISSÃO";
-  const subtitle = blocked
-    ? "Conflito entre dados informados e dados encontrados no documento (OCR)."
-    : isReview
-    ? "Revisão recomendada antes da emissão."
-    : "Validação automática sem conflitos críticos.";
-
-  const badgeStyle = blocked
-    ? "bg-red-100 text-red-700"
-    : isReview
-    ? "bg-yellow-100 text-yellow-700"
-    : "bg-green-100 text-green-700";
+  const badge =
+    status === "validation_failed"
+      ? "FALHA DE VALIDAÇÃO TÉCNICA"
+      : status === "blocked"
+      ? "BLOQUEADO POR CONFLITO"
+      : status === "review"
+      ? "EM REVISÃO"
+      : "APROVADO PARA EMISSÃO";
+  const badgeStyle =
+    status === "blocked"
+      ? "bg-red-100 text-red-700"
+      : status === "validation_failed"
+      ? "bg-yellow-100 text-yellow-700"
+      : status === "review"
+      ? "bg-orange-100 text-orange-700"
+      : "bg-green-100 text-green-700";
 
   return (
     <div className="bg-white rounded-lg shadow p-6 space-y-2">
@@ -155,15 +152,14 @@ function StatusPanel({
 
 function ConflictList({
   issues,
-  risk,
+  blocked,
   onRetry,
 }: {
   issues: VerificationIssue[];
-  risk?: string;
+  blocked: boolean;
   onRetry?: () => void;
 }) {
   if (!issues.length) return null;
-  const riskValue = (risk || "low").toLowerCase();
   return (
     <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
       <div>
@@ -185,7 +181,7 @@ function ConflictList({
           </div>
         ))}
       </div>
-      {riskValue === "high" && (
+      {blocked && (
         <Button onClick={onRetry} className="bg-red-600 hover:bg-red-700 text-white">
           Reenviar com dados corretos
         </Button>
@@ -580,41 +576,56 @@ export default function CaseDetailPage() {
       analysis?.results ??
       analysis?.rules_result ??
       {}) as Record<string, any>;
-  const verificationOk =
-    analysisPayload.verification_ok ??
-    analysisPayload.verifier_ok ??
-    analysisPayload.verificationOk ??
-    undefined;
-  const verificationRisk =
-    analysisPayload.verification_risk ??
-    analysisPayload.verifier_risk ??
-    analysisPayload.verificationRisk ??
-    undefined;
-  const verificationIssues = safeParseJsonArray<VerificationIssue>(
-    analysisPayload.verification_issues ?? analysisPayload.verificationIssues
-  );
   const validationOk = analysisPayload.validation_ok ?? analysisPayload.validationOk ?? undefined;
-  const validationIssues = safeParseJsonArray<string>(
-    analysisPayload.validation_issues ?? analysisPayload.validationIssues
+  const validationIssues = safeParseJsonArray<string>(analysisPayload.validation_issues);
+  const verifierOk = analysisPayload.verifier_ok ?? analysisPayload.verifierOk ?? undefined;
+  const verifierRisk = analysisPayload.verifier_risk ?? analysisPayload.verifierRisk ?? "unknown";
+  const verifierIssues = safeParseJsonArray<VerificationIssue>(
+    analysisPayload.verifier_issues ?? analysisPayload.verifierIssues
+  );
+  const verifierMustFix = safeParseJsonArray<string>(
+    analysisPayload.verifier_must_fix ?? analysisPayload.verifierMustFix
   );
   const analysisSummary =
     analysisPayload.analysis_summary ??
-    analysisPayload.summary ??
     safeGet(analysisPayload, "results.summary") ??
     safeGet(analysis, "results.summary") ??
     "";
   const finalClassification =
-    analysisPayload.final_classification ??
     analysisPayload.finalClassification ??
-    analysis?.final_classification ??
+    analysisPayload.final_classification ??
     analysis?.finalClassification ??
+    analysis?.final_classification ??
     null;
   const analysisBlocks = safeParseJsonArray<AnalysisBlock>(
-    analysisPayload.analysis_blocks ??
-      analysisPayload.blocks ??
-      safeGet(analysisPayload, "results.blocks") ??
-      safeGet(analysis, "results.blocks")
+    safeGet(analysisPayload, "results.blocks") ??
+      safeGet(analysis, "results.blocks") ??
+      analysisPayload.analysis_blocks ??
+      analysisPayload.blocks
   );
+  const hasValidationFailure = validationOk === false;
+  const hasVerifierBlock =
+    verifierOk === false ||
+    String(verifierRisk || "").toLowerCase() === "high" ||
+    verifierMustFix.length > 0;
+  const isReview =
+    !hasValidationFailure &&
+    !hasVerifierBlock &&
+    String(verifierRisk || "").toLowerCase() === "medium";
+  const statusPanelState = hasValidationFailure
+    ? "validation_failed"
+    : hasVerifierBlock
+    ? "blocked"
+    : isReview
+    ? "review"
+    : "approved";
+  const statusSubtitle = hasValidationFailure
+    ? "A validação técnica falhou. Revise os campos obrigatórios."
+    : hasVerifierBlock
+    ? "Conflito entre dados informados e dados encontrados no documento (OCR)."
+    : isReview
+    ? "Revisão recomendada antes da emissão."
+    : "Validação automática sem conflitos críticos.";
 
   return (
     <div className="space-y-6">
@@ -976,18 +987,20 @@ export default function CaseDetailPage() {
 
       {analysis && (
         <div className="space-y-6">
-          <StatusPanel verificationOk={verificationOk} verificationRisk={verificationRisk} />
+          <StatusPanel status={statusPanelState} subtitle={statusSubtitle} />
 
-          <ConflictList
-            issues={Array.isArray(verificationIssues) ? verificationIssues : []}
-            risk={verificationRisk}
-            onRetry={() => {
-              const target = document.getElementById("ppp-upload-section");
-              if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
-            }}
-          />
+          {(hasValidationFailure || hasVerifierBlock) && (
+            <ConflictList
+              issues={Array.isArray(verifierIssues) ? verifierIssues : []}
+              blocked={hasVerifierBlock}
+              onRetry={() => {
+                const target = document.getElementById("ppp-upload-section");
+                if (target) {
+                  target.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }}
+            />
+          )}
 
           {validationOk === false && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 space-y-3">
@@ -995,6 +1008,17 @@ export default function CaseDetailPage() {
               <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
                 {(validationIssues ?? []).map((issue, index) => (
                   <li key={`validation-${index}`}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {verifierMustFix.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-3">
+              <h3 className="text-sm font-semibold text-red-800">Campos obrigatórios para correção</h3>
+              <ul className="text-xs text-red-700 list-disc pl-4 space-y-1">
+                {verifierMustFix.map((item, index) => (
+                  <li key={`must-fix-${index}`}>{item}</li>
                 ))}
               </ul>
             </div>
