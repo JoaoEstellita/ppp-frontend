@@ -36,6 +36,23 @@ type AnalysisBlock = {
   issues?: string[];
 };
 
+function safeParseJsonArray<T = any>(value: any): T[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeGet(obj: any, path: string): any {
+  if (!obj || !path) return undefined;
+  return path.split(".").reduce((acc, key) => (acc ? acc[key] : undefined), obj);
+}
+
 const STATUS_LABELS: Record<string, string> = {
   awaiting_payment: "Aguardando pagamento",
   awaiting_pdf: "Aguardando PDF",
@@ -563,19 +580,28 @@ export default function CaseDetailPage() {
       analysis?.results ??
       analysis?.rules_result ??
       {}) as Record<string, any>;
-  const verificationOk = analysisPayload.verification_ok ?? analysisPayload.verificationOk ?? undefined;
-  const verificationRisk = analysisPayload.verification_risk ?? analysisPayload.verificationRisk ?? undefined;
-  const verificationIssues = (analysisPayload.verification_issues ??
-    analysisPayload.verificationIssues ??
-    []) as VerificationIssue[];
+  const verificationOk =
+    analysisPayload.verification_ok ??
+    analysisPayload.verifier_ok ??
+    analysisPayload.verificationOk ??
+    undefined;
+  const verificationRisk =
+    analysisPayload.verification_risk ??
+    analysisPayload.verifier_risk ??
+    analysisPayload.verificationRisk ??
+    undefined;
+  const verificationIssues = safeParseJsonArray<VerificationIssue>(
+    analysisPayload.verification_issues ?? analysisPayload.verificationIssues
+  );
   const validationOk = analysisPayload.validation_ok ?? analysisPayload.validationOk ?? undefined;
-  const validationIssues = (analysisPayload.validation_issues ??
-    analysisPayload.validationIssues ??
-    []) as string[];
+  const validationIssues = safeParseJsonArray<string>(
+    analysisPayload.validation_issues ?? analysisPayload.validationIssues
+  );
   const analysisSummary =
     analysisPayload.analysis_summary ??
     analysisPayload.summary ??
-    analysis?.results?.summary ??
+    safeGet(analysisPayload, "results.summary") ??
+    safeGet(analysis, "results.summary") ??
     "";
   const finalClassification =
     analysisPayload.final_classification ??
@@ -583,10 +609,12 @@ export default function CaseDetailPage() {
     analysis?.final_classification ??
     analysis?.finalClassification ??
     null;
-  const analysisBlocks = (analysisPayload.analysis_blocks ??
-    analysisPayload.blocks ??
-    analysis?.results?.blocks ??
-    []) as AnalysisBlock[];
+  const analysisBlocks = safeParseJsonArray<AnalysisBlock>(
+    analysisPayload.analysis_blocks ??
+      analysisPayload.blocks ??
+      safeGet(analysisPayload, "results.blocks") ??
+      safeGet(analysis, "results.blocks")
+  );
 
   return (
     <div className="space-y-6">
