@@ -620,12 +620,12 @@ export default function CaseDetailPage() {
     ? "review"
     : "approved";
   const statusSubtitle = hasValidationFailure
-    ? "A validação técnica falhou. Revise os campos obrigatórios."
+    ? "Não foi possível gerar o parecer por inconsistência ou ausência de dados mínimos."
     : hasVerifierBlock
-    ? "Conflito entre dados informados e dados encontrados no documento (OCR)."
+    ? "Há contradição clara entre dados informados e o que foi encontrado no documento (OCR)."
     : isReview
-    ? "Revisão recomendada antes da emissão."
-    : "Validação automática sem conflitos críticos.";
+    ? "Pode haver OCR incompleto; recomendamos revisar ou reenviar para melhorar a leitura."
+    : "Validação automática concluída sem conflitos críticos.";
 
   return (
     <div className="space-y-6">
@@ -987,44 +987,84 @@ export default function CaseDetailPage() {
 
       {analysis && (
         <div className="space-y-6">
-          <StatusPanel status={statusPanelState} subtitle={statusSubtitle} />
-
-          {(hasValidationFailure || hasVerifierBlock) && (
-            <ConflictList
-              issues={Array.isArray(verifierIssues) ? verifierIssues : []}
-              blocked={hasVerifierBlock}
-              onRetry={() => {
-                const target = document.getElementById("ppp-upload-section");
-                if (target) {
-                  target.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-              }}
-            />
-          )}
-
-          {validationOk === false && (
+          {hasValidationFailure ? (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 space-y-3">
-              <h3 className="text-sm font-semibold text-yellow-800">Falha de validação técnica</h3>
+              <h3 className="text-sm font-semibold text-yellow-800">FALHA DE VALIDAÇÃO TÉCNICA</h3>
+              <p className="text-xs text-yellow-700">
+                Não foi possível gerar o parecer por inconsistência ou ausência de dados mínimos.
+              </p>
               <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
                 {(validationIssues ?? []).map((issue, index) => (
                   <li key={`validation-${index}`}>{issue}</li>
                 ))}
               </ul>
             </div>
-          )}
+          ) : hasVerifierBlock ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-red-800">BLOQUEADO POR CONFLITO</h3>
+                <p className="text-xs text-red-600 mt-1">
+                  Há contradição clara entre dados informados e o que foi encontrado no documento (OCR).
+                </p>
+              </div>
 
-          {verifierMustFix.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-3">
-              <h3 className="text-sm font-semibold text-red-800">Campos obrigatórios para correção</h3>
-              <ul className="text-xs text-red-700 list-disc pl-4 space-y-1">
-                {verifierMustFix.map((item, index) => (
-                  <li key={`must-fix-${index}`}>{item}</li>
-                ))}
-              </ul>
+              {verifierMustFix.length > 0 && (
+                <div className="bg-white rounded-md p-3 border border-red-100">
+                  <p className="text-xs font-semibold text-red-700 mb-2">Itens obrigatórios para corrigir</p>
+                  <ul className="text-xs text-red-700 list-disc pl-4 space-y-1">
+                    {verifierMustFix.map((item, index) => (
+                      <li key={`must-fix-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {Array.isArray(verifierIssues) && verifierIssues.length > 0 && (
+                <div className="space-y-3">
+                  {verifierIssues.map((issue, index) => (
+                    <div key={`${issue.field || "field"}-${index}`} className="bg-white rounded-md p-3 border border-red-100">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900">
+                          {issue.field || "Campo não informado"}
+                        </p>
+                        <SeverityBadge severity={issue.severity} />
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{issue.problem || "Problema não informado."}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                onClick={() => {
+                  const target = document.getElementById("ppp-upload-section");
+                  if (target) {
+                    target.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Reenviar PPP
+              </Button>
+            </div>
+          ) : isReview ? (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 space-y-2">
+              <h3 className="text-sm font-semibold text-orange-800">EM REVISÃO</h3>
+              <p className="text-xs text-orange-700">
+                Pode haver OCR incompleto; recomendamos revisar ou reenviar para melhorar a leitura.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-2">
+              <h3 className="text-sm font-semibold text-green-800">APROVADO PARA EMISSÃO</h3>
+              <p className="text-xs text-green-700">Validação automática concluída sem conflitos críticos.</p>
             </div>
           )}
 
           <div className="bg-white rounded-lg shadow p-6 space-y-3">
+            {(hasValidationFailure || hasVerifierBlock) && (
+              <p className="text-xs text-gray-500">Análise preliminar (pode estar incompleta)</p>
+            )}
             <h3 className="text-sm font-semibold text-gray-600">Resumo da análise</h3>
             <p className="text-sm text-gray-800">{analysisSummary || "Resumo não informado."}</p>
             <p className="text-xs text-gray-500">
@@ -1032,6 +1072,9 @@ export default function CaseDetailPage() {
             </p>
           </div>
 
+          {(hasValidationFailure || hasVerifierBlock) && (
+            <p className="text-xs text-gray-500">Análise preliminar (pode estar incompleta)</p>
+          )}
           <BlocksList blocks={Array.isArray(analysisBlocks) ? analysisBlocks : []} />
         </div>
       )}
