@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -315,6 +315,7 @@ export default function CaseDetailPage() {
   const [detailsMessage, setDetailsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [savingDetails, setSavingDetails] = useState(false);
   const [detailsDirty, setDetailsDirty] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
   const [workerNameEdit, setWorkerNameEdit] = useState("");
   const [workerCpfEdit, setWorkerCpfEdit] = useState("");
   const [companyNameEdit, setCompanyNameEdit] = useState("");
@@ -583,6 +584,7 @@ export default function CaseDetailPage() {
       setDetailsDirty(false);
       setDetailsMessage({ type: "success", text: "Dados atualizados com sucesso." });
       await fetchCase();
+      setEditingDetails(false);
     } catch (err) {
       if (err instanceof ApiError) {
         setDetailsMessage({ type: "error", text: err.message || "Não foi possível salvar os dados." });
@@ -612,7 +614,7 @@ export default function CaseDetailPage() {
   }, [caseDetail, fetchDocuments]);
 
   useEffect(() => {
-    if (!caseDetail || detailsDirty) return;
+    if (!caseDetail || detailsDirty || editingDetails) return;
     const cadastroWorkerName = caseDetail.worker?.name ?? caseDetail.case.worker?.name ?? "";
     const cadastroWorkerCpf = caseDetail.worker?.cpf ?? caseDetail.case.worker?.cpf ?? "";
     const cadastroCompanyName = caseDetail.company?.name ?? caseDetail.case.company?.name ?? "";
@@ -621,7 +623,7 @@ export default function CaseDetailPage() {
     setWorkerCpfEdit(cadastroWorkerCpf);
     setCompanyNameEdit(cadastroCompanyName);
     setCompanyCnpjEdit(cadastroCompanyCnpj);
-  }, [caseDetail, detailsDirty]);
+  }, [caseDetail, detailsDirty, editingDetails]);
 
   // Verificar se tem documento PPP input
   const hasPppInput = useMemo(() => {
@@ -1402,7 +1404,7 @@ export default function CaseDetailPage() {
           {(hasExtractedData || conflictItems.length > 0) && (
             <div className="bg-white rounded-lg shadow p-6 space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-gray-700">Conflitos de dados do cadastro</h3>
+                <h3 className="text-sm font-semibold text-gray-700">Correções de dados do cadastro</h3>
                 <p className="text-xs text-gray-500">
                   Comparacao entre o cadastro do caso e os dados encontrados no documento.
                 </p>
@@ -1432,12 +1434,34 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          <div id="cadastro-corrections" className="bg-white rounded-lg shadow p-6 space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700">Correcoes de dados do cadastro</h3>
-              <p className="text-xs text-gray-500">
-                Atualize os dados abaixo caso identifique divergências.
-              </p>
+                    <div id="cadastro-corrections" className="bg-white rounded-lg shadow p-6 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700">Correções de dados do cadastro</h3>
+                <p className="text-xs text-gray-500">
+                  Atualize os dados abaixo caso identifique divergências.
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  if (editingDetails && caseDetail) {
+                    const cadastroWorkerName = caseDetail.worker?.name ?? caseDetail.case.worker?.name ?? "";
+                    const cadastroWorkerCpf = caseDetail.worker?.cpf ?? caseDetail.case.worker?.cpf ?? "";
+                    const cadastroCompanyName = caseDetail.company?.name ?? caseDetail.case.company?.name ?? "";
+                    const cadastroCompanyCnpj = caseDetail.company?.cnpj ?? caseDetail.case.company?.cnpj ?? "";
+                    setWorkerNameEdit(cadastroWorkerName);
+                    setWorkerCpfEdit(cadastroWorkerCpf);
+                    setCompanyNameEdit(cadastroCompanyName);
+                    setCompanyCnpjEdit(cadastroCompanyCnpj);
+                  }
+                  setEditingDetails((prev) => !prev);
+                  setDetailsDirty(false);
+                  setDetailsMessage(null);
+                }}
+                className="bg-gray-100 text-gray-800 hover:bg-gray-200"
+              >
+                {editingDetails ? "Cancelar edição" : "Editar"}
+              </Button>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="text-xs text-gray-600">
@@ -1448,7 +1472,8 @@ export default function CaseDetailPage() {
                     setWorkerNameEdit(event.target.value);
                     setDetailsDirty(true);
                   }}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  disabled={!editingDetails}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </label>
               <label className="text-xs text-gray-600">
@@ -1459,7 +1484,8 @@ export default function CaseDetailPage() {
                     setWorkerCpfEdit(event.target.value);
                     setDetailsDirty(true);
                   }}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  disabled={!editingDetails}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </label>
               <label className="text-xs text-gray-600">
@@ -1470,7 +1496,8 @@ export default function CaseDetailPage() {
                     setCompanyNameEdit(event.target.value);
                     setDetailsDirty(true);
                   }}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  disabled={!editingDetails}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </label>
               <label className="text-xs text-gray-600">
@@ -1481,7 +1508,8 @@ export default function CaseDetailPage() {
                     setCompanyCnpjEdit(event.target.value);
                     setDetailsDirty(true);
                   }}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  disabled={!editingDetails}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </label>
             </div>
@@ -1496,15 +1524,17 @@ export default function CaseDetailPage() {
                 {detailsMessage.text}
               </div>
             )}
-            <div>
-              <Button
-                onClick={handleSaveDetails}
-                disabled={savingDetails || !detailsDirty}
-                className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-              >
-                {savingDetails ? "Salvando..." : "Salvar correcoes"}
-              </Button>
-            </div>
+            {editingDetails && (
+              <div>
+                <Button
+                  onClick={handleSaveDetails}
+                  disabled={savingDetails || !detailsDirty}
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                >
+                  {savingDetails ? "Salvando..." : "Salvar correções"}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-lg shadow p-6 space-y-3">
@@ -1681,6 +1711,3 @@ export default function CaseDetailPage() {
     </div>
   );
 }
-
-
-
