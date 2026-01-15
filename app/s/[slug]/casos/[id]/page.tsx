@@ -800,24 +800,6 @@ export default function CaseDetailPage() {
   const hasExtractedData = Boolean(
     extractedWorkerName || extractedWorkerCpf || extractedCompanyName || extractedCompanyCnpj
   );
-  const errorCode = String(caseRecord.last_error_code ?? "").toLowerCase();
-  const errorReasonPublic =
-    caseRecord.last_error_message ?? caseRecord.last_n8n_error ?? "";
-  const hasErrorPayload = Boolean(errorCode || errorReasonPublic);
-  const effectiveErrorCode =
-    errorCode ||
-    (hasValidationFailure ? "validation_failed" : hasVerifierBlock ? "conflict_detected" : "");
-  const errorTitle =
-    effectiveErrorCode === "download_failed" || effectiveErrorCode === "ocr_failed"
-      ? "FALHA NA LEITURA DO DOCUMENTO"
-      : effectiveErrorCode === "validation_failed"
-      ? "FALHA DE VALIDACAO TECNICA"
-      : effectiveErrorCode === "conflict_detected"
-      ? "BLOQUEADO POR CONFLITO DE DADOS"
-      : effectiveErrorCode === "worker_cpf_conflict"
-      ? "DIVERGENCIA NO CPF"
-      : "ERRO DE PROCESSAMENTO";
-  const showErrorBanner = status === "error" || hasErrorPayload;
   const hasValidationFailure = validationOk === false;
   const hasVerifierBlock =
     verifierOk === false ||
@@ -841,6 +823,24 @@ export default function CaseDetailPage() {
     : isReview
     ? "Recomendamos revisar ou reenviar para melhorar a conferencia."
     : "Analise concluida sem conflitos criticos.";
+  const errorCode = String(caseRecord.last_error_code ?? "").toLowerCase();
+  const errorReasonPublic =
+    caseRecord.last_error_message ?? caseRecord.last_n8n_error ?? "";
+  const hasErrorPayload = Boolean(errorCode || errorReasonPublic);
+  const effectiveErrorCode =
+    errorCode ||
+    (hasValidationFailure ? "validation_failed" : hasVerifierBlock ? "conflict_detected" : "");
+  const errorTitle =
+    effectiveErrorCode === "download_failed" || effectiveErrorCode === "ocr_failed"
+      ? "FALHA NA LEITURA DO DOCUMENTO"
+      : effectiveErrorCode === "validation_failed"
+      ? "FALHA DE VALIDACAO TECNICA"
+      : effectiveErrorCode === "conflict_detected"
+      ? "BLOQUEADO POR CONFLITO DE DADOS"
+      : effectiveErrorCode === "worker_cpf_conflict"
+      ? "DIVERGENCIA NO CPF"
+      : "ERRO DE PROCESSAMENTO";
+  const showErrorBanner = status === "error" || hasErrorPayload;
 
   return (
     <div className="space-y-6">
