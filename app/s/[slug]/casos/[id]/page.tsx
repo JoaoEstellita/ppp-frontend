@@ -825,7 +825,19 @@ export default function CaseDetailPage() {
     : "Analise concluida sem conflitos criticos.";
   const errorCode = String(caseRecord.last_error_code ?? "").toLowerCase();
   const errorReasonPublic =
-    caseRecord.last_error_message ?? caseRecord.last_n8n_error ?? "";
+    caseRecord.last_error_message ??
+    caseRecord.last_n8n_error ??
+    (errorCode === "ocr_size_limit"
+      ? "O arquivo enviado e muito grande para leitura automatica (limite 5MB). Reenvie um PDF menor ou comprimido."
+      : errorCode === "download_failed"
+      ? "Falha ao baixar o PDF enviado. Reenvie o arquivo."
+      : errorCode === "ocr_failed"
+      ? "Falha na leitura do documento. Reenvie o PDF com melhor qualidade."
+      : errorCode === "conflict_detected"
+      ? "Ha divergencias entre cadastro e documento."
+      : errorCode === "validation_failed"
+      ? "Falha de validacao tecnica. Verifique os dados e reenviar o PPP."
+      : "");
   const hasErrorPayload = Boolean(errorCode || errorReasonPublic);
   const effectiveErrorCode =
     errorCode ||
