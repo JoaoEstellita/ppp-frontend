@@ -1,3 +1,20 @@
+  const handleReuploadFile = async (file: File) => {
+    if (!caseId) return;
+    try {
+      setReuploading(true);
+      setReuploadMessage(null);
+      await adminUploadPppInput(caseId, file);
+      setReuploadMessage({ type: "success", text: "PPP reenviado. Processamento reiniciado." });
+      await loadCase();
+    } catch (err) {
+      setReuploadMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Nao foi possivel reenviar o PPP.",
+      });
+    } finally {
+      setReuploading(false);
+    }
+  };
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -13,6 +30,7 @@ import {
   adminListCaseEvents,
   adminSubmitCase,
   adminMarkCaseAsError,
+  adminUploadPppInput,
   CaseEvent,
 } from "@/src/services/api";
 
@@ -74,6 +92,8 @@ export default function AdminCaseDetailPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
   const [caseEvents, setCaseEvents] = useState<CaseEvent[]>([]);
+  const [reuploading, setReuploading] = useState(false);
+  const [reuploadMessage, setReuploadMessage] = useState<FeedbackMessage | null>(null);
 
   const loadCaseEvents = useCallback(async () => {
     if (!caseId) return;
@@ -490,15 +510,45 @@ export default function AdminCaseDetailPage() {
               {caseData.last_error_step && (
                 <p className="text-xs text-red-500 mt-1">Etapa: {caseData.last_error_step}</p>
               )}
-              {caseData.last_error_at && (
-                <p className="text-xs text-red-500">Ocorrido em: {formatDate(caseData.last_error_at)}</p>
-              )}
-            </div>
-            <Button
-              onClick={handleSubmitForAnalysis}
-              disabled={actionLoading === "submit"}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
+                {caseData.last_error_at && (
+                  <p className="text-xs text-red-500">Ocorrido em: {formatDate(caseData.last_error_at)}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <input
+                  id="admin-ppp-reupload"
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handleReuploadFile(file);
+                    }
+                    event.currentTarget.value = "";
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    const input = document.getElementById("admin-ppp-reupload") as HTMLInputElement | null;
+                    input?.click();
+                  }}
+                  disabled={reuploading}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {reuploading ? "Reenviando..." : "Reenviar PPP"}
+                </Button>
+                {reuploadMessage && (
+                  <p className={`text-xs ${reuploadMessage.type === "success" ? "text-green-700" : "text-red-600"}`}>
+                    {reuploadMessage.text}
+                  </p>
+                )}
+              </div>
+              <Button
+                onClick={handleSubmitForAnalysis}
+                disabled={actionLoading === "submit"}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
               {actionLoading === "submit" ? "Reenviando..." : "Reenviar para análise"}
             </Button>
           </div>
@@ -629,3 +679,4 @@ export default function AdminCaseDetailPage() {
     </div>
   );
 }
+

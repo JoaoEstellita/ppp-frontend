@@ -313,6 +313,8 @@ export default function CaseDetailPage() {
   const [workerCpfEdit, setWorkerCpfEdit] = useState("");
   const [companyNameEdit, setCompanyNameEdit] = useState("");
   const [companyCnpjEdit, setCompanyCnpjEdit] = useState("");
+  const [reuploading, setReuploading] = useState(false);
+  const [reuploadMessage, setReuploadMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   
   // Estados para upload de PDF
   const [uploadingPdf, setUploadingPdf] = useState(false);
@@ -357,7 +359,12 @@ export default function CaseDetailPage() {
   // Polling autom+?tico quando caso est+? em processing (a cada 10 segundos)
   useEffect(() => {
     const status = caseDetail?.case?.status;
+    const hasError =
+      !!caseDetail?.case?.last_error_code ||
+      !!caseDetail?.case?.last_error_message ||
+      caseDetail?.case?.last_n8n_status === "error";
     if (status !== "processing" && status !== "paid_processing") return;
+    if (hasError) return;
 
     const interval = setInterval(() => {
       fetchCase();
@@ -505,6 +512,28 @@ export default function CaseDetailPage() {
       setUploadingPdf(false);
     }
   }, [slug, caseId, selectedFile, fetchCase]);
+
+  const handleReuploadFile = useCallback(
+    async (file: File) => {
+      if (!slug || !caseId || !file) return;
+      try {
+        setReuploading(true);
+        setReuploadMessage(null);
+        await uploadPppInput(slug, caseId, file);
+        setReuploadMessage({ type: "success", text: "PPP reenviado. Processamento reiniciado." });
+        await fetchCase();
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setReuploadMessage({ type: "error", text: err.message || "Nao foi possivel reenviar o PPP." });
+        } else {
+          setReuploadMessage({ type: "error", text: "Nao foi possivel reenviar o PPP." });
+        }
+      } finally {
+        setReuploading(false);
+      }
+    },
+    [slug, caseId, fetchCase]
+  );
 
   // Handler para enviar para an+?lise (n8n)
   const handleSubmitForAnalysis = useCallback(async () => {
@@ -765,6 +794,24 @@ export default function CaseDetailPage() {
   const hasExtractedData = Boolean(
     extractedWorkerName || extractedWorkerCpf || extractedCompanyName || extractedCompanyCnpj
   );
+  const errorCode = String(caseRecord.last_error_code ?? "").toLowerCase();
+  const errorReasonPublic =
+    caseRecord.last_error_message ?? caseRecord.last_n8n_error ?? "";
+  const hasErrorPayload = Boolean(errorCode || errorReasonPublic);
+  const effectiveErrorCode =
+    errorCode ||
+    (hasValidationFailure ? "validation_failed" : hasVerifierBlock ? "conflict_detected" : "");
+  const errorTitle =
+    effectiveErrorCode === "download_failed" || effectiveErrorCode === "ocr_failed"
+      ? "FALHA NA LEITURA DO DOCUMENTO"
+      : effectiveErrorCode === "validation_failed"
+      ? "FALHA DE VALIDACAO TECNICA"
+      : effectiveErrorCode === "conflict_detected"
+      ? "BLOQUEADO POR CONFLITO DE DADOS"
+      : effectiveErrorCode === "worker_cpf_conflict"
+      ? "DIVERGENCIA NO CPF"
+      : "ERRO DE PROCESSAMENTO";
+  const showErrorBanner = status === "error" || hasErrorPayload;
   const hasValidationFailure = validationOk === false;
   const hasVerifierBlock =
     verifierOk === false ||
@@ -809,7 +856,93 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      {status === "awaiting_payment" && (
+            {showErrorBanner && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-red-800">{errorTitle}</h3>
+              <p className="text-xs text-red-700 mt-1">
+                {errorReasonPublic ||
+                  "Houve um problema no processamento. Atualize os dados e reenvie o PPP."}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                id="ppp-reupload"
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    handleReuploadFile(file);
+                  }
+                  event.currentTarget.value = "";
+                }}
+              />
+              <Button
+                onClick={() => {
+                  const input = document.getElementById("ppp-reupload") as HTMLInputElement | null;
+                  input?.click();
+                }}
+                disabled={reuploading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {reuploading ? "Reenviando..." : "Reenviar PPP"}
+              </Button>
+              <Button
+                onClick={fetchCase}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                Recarregar status
+              </Button>
+            </div>
+          </div>
+          {reuploadMessage && (
+            <div
+              className={`text-xs px-3 py-2 rounded ${
+                reuploadMessage.type === "success"
+                  ? "bg-green-50 text-green-700"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
+              {reuploadMessage.text}
+            </div>
+          )}
+          {effectiveErrorCode === "worker_cpf_conflict" && (
+            <Button
+              onClick={() => {
+                const target = document.getElementById("cadastro-corrections");
+                if (target) {
+                  target.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }}
+              className="bg-red-700 hover:bg-red-800 text-white"
+            >
+              Corrigir dados do cadastro
+            </Button>
+          )}
+        </div>
+      )}
+      {pppInputDoc && (
+        <div className="bg-white rounded-lg shadow p-6 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-700">Documento atual</h3>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-gray-900">
+                {pppInputDoc.original_name || "PPP enviado"}
+              </p>
+              {pppInputDoc.created_at && (
+                <p className="text-xs text-gray-500">
+                  Enviado em {new Date(pppInputDoc.created_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+            <DownloadPdfButton slug={slug} caseId={caseId} docId={pppInputDoc.id} />
+          </div>
+        </div>
+      )}
+{status === "awaiting_payment" && (
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Pagamento</h3>
           <p className="text-sm text-gray-600">
@@ -1068,7 +1201,7 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {(status === "processing" || status === "paid_processing") && (
+      {(status === "processing" || status === "paid_processing") && !showErrorBanner && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 space-y-2">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
@@ -1267,7 +1400,7 @@ export default function CaseDetailPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div id="cadastro-corrections" className="bg-white rounded-lg shadow p-6 space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-gray-700">Correcoes de dados do cadastro</h3>
               <p className="text-xs text-gray-500">
@@ -1516,4 +1649,7 @@ export default function CaseDetailPage() {
     </div>
   );
 }
+
+
+
 

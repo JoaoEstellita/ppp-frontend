@@ -1272,6 +1272,21 @@ export async function uploadPppInput(
   return data as UploadPppInputResponse;
 }
 
+export async function adminUploadPppInput(
+  caseId: string,
+  file: File
+): Promise<UploadPppInputResponse> {
+  const formData = new FormData();
+  formData.append("pppFile", file);
+
+  const res = await apiFetch(`/admin/cases/${caseId}/documents/ppp-input`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await handleJsonResponse(res);
+  return data as UploadPppInputResponse;
+}
+
 /**
  * Listar documentos de um caso
  */

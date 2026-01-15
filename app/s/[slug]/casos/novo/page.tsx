@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
-import { createCase } from "@/src/services/api";
+import { ApiError, createCase } from "@/src/services/api";
 
 export default function NewCasePage() {
   const router = useRouter();
@@ -56,7 +56,18 @@ export default function NewCasePage() {
       router.push(`/s/${slug}/casos/${createdCase.id}`);
     } catch (err) {
       console.error(err);
-      setError("Nao foi possivel criar o caso.");
+      if (err instanceof ApiError && err.code === "worker_cpf_conflict") {
+        const existingName = (err.details as { existing_name?: string } | undefined)?.existing_name;
+        setError(
+          existingName
+            ? `CPF ja cadastrado com outro nome: ${existingName}. Atualize os dados do cadastro ou use o CPF correto.`
+            : "CPF ja cadastrado com outro nome. Atualize os dados do cadastro ou use o CPF correto."
+        );
+      } else if (err instanceof ApiError) {
+        setError(err.message || "Nao foi possivel criar o caso.");
+      } else {
+        setError("Nao foi possivel criar o caso.");
+      }
     } finally {
       setLoading(false);
     }
@@ -119,4 +130,3 @@ export default function NewCasePage() {
     </div>
   );
 }
-
