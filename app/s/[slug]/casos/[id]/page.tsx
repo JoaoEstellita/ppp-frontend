@@ -862,7 +862,7 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-            {showErrorBanner && (
+      {showErrorBanner && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -894,7 +894,7 @@ export default function CaseDetailPage() {
                 disabled={reuploading}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
-                {reuploading ? "Reenviando..." : "Reenviar PPP"}
+                {reuploading ? "Reenviando..." : "Reenviar PDF"}
               </Button>
               <Button
                 onClick={fetchCase}
@@ -915,6 +915,14 @@ export default function CaseDetailPage() {
               {reuploadMessage.text}
             </div>
           )}
+          <div className="bg-white rounded-md p-3 border border-red-100 text-xs text-gray-700">
+            <p className="font-semibold text-gray-800">Ultimo problema</p>
+            <p>Codigo: {caseRecord.last_error_code || "-"}</p>
+            <p>Mensagem: {caseRecord.last_error_message || "-"}</p>
+            <p>Etapa: {caseRecord.last_error_step || "-"}</p>
+            <p>Status N8N: {caseRecord.last_n8n_status || "-"}</p>
+            <p>Quando: {caseRecord.last_error_at ? new Date(caseRecord.last_error_at).toLocaleString() : "-"}</p>
+          </div>
           {effectiveErrorCode === "worker_cpf_conflict" && (
             <Button
               onClick={() => {
@@ -1308,7 +1316,7 @@ export default function CaseDetailPage() {
                   }}
                   className="bg-yellow-600 hover:bg-yellow-700 text-white"
                 >
-                  Reenviar PPP
+                  Reenviar PDF
                 </Button>
               </div>
           ) : hasVerifierBlock ? (
@@ -1356,7 +1364,7 @@ export default function CaseDetailPage() {
                 }}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
-                Reenviar PPP
+                Reenviar PDF
               </Button>
             </div>
           ) : isReview ? (
@@ -1496,7 +1504,7 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {status === "error" && (
+      {status === "error" && !showErrorBanner && (
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">

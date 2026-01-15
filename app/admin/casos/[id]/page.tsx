@@ -547,7 +547,7 @@ export default function AdminCaseDetailPage() {
                   disabled={reuploading}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
-                  {reuploading ? "Reenviando..." : "Reenviar PPP"}
+                  {reuploading ? "Reenviando..." : "Reenviar PDF"}
                 </Button>
                 {reuploadMessage && (
                   <p className={`text-xs ${reuploadMessage.type === "success" ? "text-green-700" : "text-red-600"}`}>
