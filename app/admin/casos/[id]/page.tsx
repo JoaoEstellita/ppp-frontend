@@ -1,20 +1,3 @@
-  const handleReuploadFile = async (file: File) => {
-    if (!caseId) return;
-    try {
-      setReuploading(true);
-      setReuploadMessage(null);
-      await adminUploadPppInput(caseId, file);
-      setReuploadMessage({ type: "success", text: "PPP reenviado. Processamento reiniciado." });
-      await loadCase();
-    } catch (err) {
-      setReuploadMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Nao foi possivel reenviar o PPP.",
-      });
-    } finally {
-      setReuploading(false);
-    }
-  };
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -193,6 +176,25 @@ export default function AdminCaseDetailPage() {
       setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleReuploadFile = async (file: File) => {
+    if (!caseId) return;
+    try {
+      setReuploading(true);
+      setReuploadMessage(null);
+      await adminUploadPppInput(caseId, file);
+      setReuploadMessage({ type: "success", text: "PPP reenviado. Processamento reiniciado." });
+      await loadCase();
+      await loadCaseEvents();
+    } catch (err) {
+      setReuploadMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Nao foi possivel reenviar o PPP.",
+      });
+    } finally {
+      setReuploading(false);
     }
   };
 
