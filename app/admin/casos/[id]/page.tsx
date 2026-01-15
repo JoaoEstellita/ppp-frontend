@@ -261,6 +261,20 @@ export default function AdminCaseDetailPage() {
 
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
   const pppInputDoc = documents.find((doc) => doc.document_type === "ppp_input");
+  const errorCode = String(caseData.last_error_code ?? "").toLowerCase();
+  const errorMessage =
+    caseData.last_error_message ||
+    (errorCode === "ocr_size_limit"
+      ? "O arquivo enviado e muito grande para leitura automatica (limite 5MB). Reenvie um PDF menor ou comprimido."
+      : errorCode === "download_failed"
+      ? "Falha ao baixar o PDF enviado. Reenvie o arquivo."
+      : errorCode === "ocr_failed"
+      ? "Falha na leitura do documento. Reenvie o PDF com melhor qualidade."
+      : errorCode === "conflict_detected"
+      ? "Ha divergencias entre cadastro e documento."
+      : errorCode === "validation_failed"
+      ? "Falha de validacao tecnica. Verifique os dados e reenviar o PPP."
+      : "");
 
   // Variável intermediária com tipo explícito para evitar erro de inferência unknown
   const feedbackNode: React.ReactNode = (() => {
@@ -507,8 +521,8 @@ export default function AdminCaseDetailPage() {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-red-800">Erro no processamento</h3>
-              {caseData.last_error_message && (
-                <p className="text-sm text-red-600 mt-1">{caseData.last_error_message}</p>
+              {errorMessage && (
+                <p className="text-sm text-red-600 mt-1">{errorMessage}</p>
               )}
               {caseData.last_error_step && (
                 <p className="text-xs text-red-500 mt-1">Etapa: {caseData.last_error_step}</p>
@@ -713,4 +727,3 @@ export default function AdminCaseDetailPage() {
     </div>
   );
 }
-
