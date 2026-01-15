@@ -260,6 +260,7 @@ export default function AdminCaseDetailPage() {
   }
 
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
+  const pppInputDoc = documents.find((doc) => doc.document_type === "ppp_input");
 
   // Variável intermediária com tipo explícito para evitar erro de inferência unknown
   const feedbackNode: React.ReactNode = (() => {
@@ -512,11 +513,19 @@ export default function AdminCaseDetailPage() {
               {caseData.last_error_step && (
                 <p className="text-xs text-red-500 mt-1">Etapa: {caseData.last_error_step}</p>
               )}
-                {caseData.last_error_at && (
-                  <p className="text-xs text-red-500">Ocorrido em: {formatDate(caseData.last_error_at)}</p>
-                )}
+              {caseData.last_error_at && (
+                <p className="text-xs text-red-500">Ocorrido em: {formatDate(caseData.last_error_at)}</p>
+              )}
+              <div className="mt-3 text-xs text-gray-700 bg-white border border-red-100 rounded p-3">
+                <p className="font-semibold text-gray-800">Ultimo problema</p>
+                <p>Codigo: {caseData.last_error_code || "-"}</p>
+                <p>Mensagem: {caseData.last_error_message || "-"}</p>
+                <p>Etapa: {caseData.last_error_step || "-"}</p>
+                <p>Status N8N: {caseData.last_n8n_status || "-"}</p>
+                <p>Quando: {caseData.last_error_at ? formatDate(caseData.last_error_at) : "-"}</p>
               </div>
-              <div className="space-y-2">
+            </div>
+            <div className="space-y-2">
                 <input
                   id="admin-ppp-reupload"
                   type="file"
@@ -570,6 +579,29 @@ export default function AdminCaseDetailPage() {
             {supportRequest.resolved_at && (
               <p><span className="text-orange-600">Resolvido em:</span> {formatDate(supportRequest.resolved_at)}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {pppInputDoc && (
+        <div className="bg-white rounded-lg shadow p-6 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-600">Documento atual</h3>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                {pppInputDoc.original_name || "ppp_input.pdf"}
+              </p>
+              <p className="text-xs text-gray-500">
+                Enviado em {formatDate(pppInputDoc.created_at)}
+              </p>
+            </div>
+            <button
+              onClick={() => handleDownload(pppInputDoc.id, pppInputDoc.original_name || "ppp_input.pdf")}
+              disabled={actionLoading === `download-${pppInputDoc.id}`}
+              className="px-3 py-1 text-sm font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50 transition-colors"
+            >
+              {actionLoading === `download-${pppInputDoc.id}` ? "..." : "Baixar PPP enviado"}
+            </button>
           </div>
         </div>
       )}
