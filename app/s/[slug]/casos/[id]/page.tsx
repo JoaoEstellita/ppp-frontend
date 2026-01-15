@@ -371,7 +371,13 @@ export default function CaseDetailPage() {
     }, 10000); // 10 segundos
 
     return () => clearInterval(interval);
-  }, [caseDetail?.case?.status, fetchCase]);
+  }, [
+    caseDetail?.case?.status,
+    caseDetail?.case?.last_error_code,
+    caseDetail?.case?.last_error_message,
+    caseDetail?.case?.last_n8n_status,
+    fetchCase,
+  ]);
 
   // Derivar downloadUrl de caseDetail (memoizado para evitar rec+?lculos)
   const downloadUrl = useMemo(() => {

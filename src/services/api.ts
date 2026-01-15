@@ -116,6 +116,10 @@ export interface FrontendCase {
   last_n8n_status?: 'submitted' | 'success' | 'error' | 'timeout' | 'network_error' | null;
   last_n8n_error?: string | null;
   last_n8n_callback_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  last_error_step?: string | null;
+  last_error_at?: string | null;
 }
 
 // Tipo compativel com a estrutura antiga (para retrocompatibilidade com mock data)
@@ -599,6 +603,10 @@ function normalizeCaseResponse(payload: any): FrontendCase {
     last_n8n_status: base.last_n8n_status ?? payload.last_n8n_status ?? null,
     last_n8n_error: base.last_n8n_error ?? payload.last_n8n_error ?? null,
     last_n8n_callback_at: base.last_n8n_callback_at ?? payload.last_n8n_callback_at ?? null,
+    last_error_code: base.last_error_code ?? payload.last_error_code ?? null,
+    last_error_message: base.last_error_message ?? payload.last_error_message ?? null,
+    last_error_step: base.last_error_step ?? payload.last_error_step ?? null,
+    last_error_at: base.last_error_at ?? payload.last_error_at ?? null,
   };
 }
 
