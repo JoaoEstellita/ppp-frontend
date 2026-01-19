@@ -30,7 +30,7 @@ function formatStatus(status?: string | null) {
     case "paid_processing":
       return "Processando";
     case "done":
-      return "ConcluÌdo";
+      return "Conclu√≠do";
     case "error":
       return "Erro";
     default:
@@ -46,11 +46,11 @@ function resolvePublicErrorMessage(code?: string | null, message?: string | null
     case "ocr_failed":
       return "Falha na leitura do documento. Reenvie o PDF.";
     case "ocr_size_limit":
-      return "Arquivo muito grande para leitura autom·tica. Reenvie um PDF menor.";
+      return "Arquivo muito grande para leitura autom√°tica. Reenvie um PDF menor.";
     case "validation_failed":
-      return "Falha de validaÁ„o tÈcnica. Reenvie o PDF com dados corretos.";
+      return "Falha de valida√ß√£o t√©cnica. Reenvie o PDF com dados corretos.";
     case "conflict_detected":
-      return "H· divergÍncias entre cadastro e documento. Revise e reenvie.";
+      return "H√° diverg√™ncias entre cadastro e documento. Revise e reenvie.";
     default:
       return "Erro no processamento. Tente reenviar o PDF.";
   }
@@ -79,9 +79,9 @@ export default function PublicCaseStatusPage() {
       setPaymentUrl(data?.payment?.payment_url ?? null);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || "N„o foi possÌvel carregar o caso.");
+        setError(err.message || "N√£o foi poss√≠vel carregar o caso.");
       } else {
-        setError("N„o foi possÌvel carregar o caso.");
+        setError("N√£o foi poss√≠vel carregar o caso.");
       }
     } finally {
       setLoading(false);
@@ -120,10 +120,10 @@ export default function PublicCaseStatusPage() {
         if (err.status === 413) {
           setReuploadError("Arquivo muito grande. Envie um PDF menor.");
         } else {
-          setReuploadError(err.message || "N„o foi possÌvel reenviar o PDF.");
+          setReuploadError(err.message || "N√£o foi poss√≠vel reenviar o PDF.");
         }
       } else {
-        setReuploadError("N„o foi possÌvel reenviar o PDF.");
+        setReuploadError("N√£o foi poss√≠vel reenviar o PDF.");
       }
     } finally {
       setReuploading(false);
@@ -143,12 +143,12 @@ export default function PublicCaseStatusPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {
-          setError("Pagamento j· iniciado para este caso.");
+          setError("Pagamento j√° iniciado para este caso.");
         } else {
-          setError(err.message || "N„o foi possÌvel gerar o link de pagamento.");
+          setError(err.message || "N√£o foi poss√≠vel gerar o link de pagamento.");
         }
       } else {
-        setError("N„o foi possÌvel gerar o link de pagamento.");
+        setError("N√£o foi poss√≠vel gerar o link de pagamento.");
       }
     } finally {
       setCreatingPayment(false);
@@ -174,7 +174,7 @@ export default function PublicCaseStatusPage() {
   }
 
   if (!caseDetail?.case) {
-    return <div className="px-6 py-10 text-sm text-gray-600">Caso n„o encontrado.</div>;
+    return <div className="px-6 py-10 text-sm text-gray-600">Caso n√£o encontrado.</div>;
   }
 
   return (
@@ -246,7 +246,7 @@ export default function PublicCaseStatusPage() {
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
         <h3 className="text-sm font-semibold text-gray-700">Reenviar PPP</h3>
         <p className="text-xs text-gray-500">
-          Use esta opÁ„o em caso de erro de leitura ou atualizaÁ„o do documento.
+          Use esta op√ß√£o em caso de erro de leitura ou atualiza√ß√£o do documento.
         </p>
         <input
           type="file"
@@ -272,7 +272,7 @@ export default function PublicCaseStatusPage() {
       )}
       {searchParams?.get("payment") === "failure" && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
-          Pagamento n„o concluÌdo. Tente novamente.
+          Pagamento n√£o conclu√≠do. Tente novamente.
         </div>
       )}
     </div>
