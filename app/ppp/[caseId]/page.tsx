@@ -12,6 +12,9 @@ import {
 } from "@/src/services/api";
 import { Button } from "@/components/Button";
 
+const BASE_PRICE = 87.9;
+const DISCOUNT_PRICE = 67.9;
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
@@ -55,6 +58,13 @@ function resolvePublicErrorMessage(code?: string | null, message?: string | null
     default:
       return "Erro no processamento. Tente reenviar o PDF.";
   }
+}
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value);
 }
 
 function formatPaymentStatus(status?: string | null) {
@@ -108,6 +118,9 @@ export default function PublicCaseStatusPage() {
       const data = await getPublicCase(caseId);
       setCaseDetail(data);
       setPaymentUrl(data?.payment?.payment_url ?? null);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("ppp:last_case_id", caseId);
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || "Não foi possível carregar o caso.");
@@ -191,6 +204,7 @@ export default function PublicCaseStatusPage() {
     [caseDetail?.case?.status]
   );
   const paymentStatus = caseDetail?.payment?.status || null;
+  const unionCodeApplied = caseDetail?.case?.union_code_applied ?? null;
   const resultDoc = useMemo(() => {
     const docs = caseDetail?.case?.documents ?? [];
     return (
@@ -282,6 +296,9 @@ export default function PublicCaseStatusPage() {
         <h3 className="text-sm font-semibold text-gray-700">Status do caso</h3>
         <p className="text-sm text-gray-800">{statusLabel}</p>
         <p className="text-xs text-gray-500">Atualizado em {formatDate(caseDetail.case.updated_at)}</p>
+        {unionCodeApplied && (
+          <p className="text-xs text-gray-500">Código do sindicato aplicado: {unionCodeApplied}</p>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
@@ -292,6 +309,12 @@ export default function PublicCaseStatusPage() {
             {formatPaymentStatus(paymentStatus)}
           </span>
         </div>
+        {unionCodeApplied && (
+          <div className="text-xs text-gray-500">
+            <div>Preço padrão: {formatPrice(BASE_PRICE)}</div>
+            <div>Preço com desconto: {formatPrice(DISCOUNT_PRICE)}</div>
+          </div>
+        )}
         {paymentUrl ? (
           <a
             href={paymentUrl}

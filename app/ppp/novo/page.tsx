@@ -96,18 +96,30 @@ export default function PublicCaseNewPage() {
   };
 
   const handleSubmit = async () => {
+    const cpfDigits = digitsOnly(workerCPF);
+    const cnpjDigits = digitsOnly(companyCNPJ);
+
     if (!workerName || !workerCPF || !companyName || !companyCNPJ || !file) {
       setError("Preencha todos os campos e anexe o PDF.");
       return;
     }
+    if (cpfDigits.length !== 11) {
+      setError("CPF inválido. Informe 11 dígitos.");
+      return;
+    }
+    if (cnpjDigits.length !== 14) {
+      setError("CNPJ inválido. Informe 14 dígitos.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
       const created = await createPublicCase({
         workerName,
-        workerCPF,
+        workerCPF: cpfDigits,
         companyName,
-        companyCNPJ,
+        companyCNPJ: cnpjDigits,
         unionCode: normalizedCode || unionCode.trim() || undefined,
         file,
       });
