@@ -7,6 +7,7 @@ import {
   ApiError,
   createPublicPayment,
   getPublicCase,
+  getPublicResultDownload,
   reuploadPublicPpp,
 } from "@/src/services/api";
 import { Button } from "@/components/Button";
@@ -68,6 +69,8 @@ export default function PublicCaseStatusPage() {
   const [reuploadError, setReuploadError] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [creatingPayment, setCreatingPayment] = useState(false);
+  const [downloadingResult, setDownloadingResult] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const fetchCase = useCallback(async () => {
     if (!caseId) return;
@@ -155,8 +158,41 @@ export default function PublicCaseStatusPage() {
     }
   };
 
-  const statusLabel = useMemo(() => formatStatus(caseDetail?.case?.status), [caseDetail?.case?.status]);
+  const statusLabel = useMemo(
+    () => formatStatus(caseDetail?.case?.status),
+    [caseDetail?.case?.status]
+  );
   const paymentStatus = caseDetail?.payment?.status || null;
+  const resultDoc = useMemo(() => {
+    const docs = caseDetail?.case?.documents ?? [];
+    return (
+      docs.find((doc: any) => doc.document_type === "ppp_result" || doc.type === "ppp_result") ||
+      docs.find((doc: any) => doc.document_type === "ppp_output" || doc.type === "ppp_output") ||
+      null
+    );
+  }, [caseDetail?.case?.documents]);
+
+  const handleDownloadResult = async () => {
+    if (!caseId) return;
+    setDownloadingResult(true);
+    setDownloadError(null);
+    try {
+      const data = await getPublicResultDownload(caseId);
+      if (data?.signedUrl) {
+        window.location.href = data.signedUrl;
+        return;
+      }
+      setDownloadError("Resultado indisponível no momento.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setDownloadError(err.message || "Não foi possível gerar o download.");
+      } else {
+        setDownloadError("Não foi possível gerar o download.");
+      }
+    } finally {
+      setDownloadingResult(false);
+    }
+  };
 
   if (loading) {
     return <div className="px-6 py-10 text-sm text-gray-600">Carregando caso...</div>;
@@ -241,6 +277,25 @@ export default function PublicCaseStatusPage() {
             {creatingPayment ? "Gerando..." : "Gerar link de pagamento"}
           </Button>
         )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Resultado</h3>
+        {resultDoc ? (
+          <>
+            <p className="text-xs text-gray-500">Documento pronto para download.</p>
+            <Button
+              onClick={handleDownloadResult}
+              disabled={downloadingResult}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {downloadingResult ? "Gerando..." : "Baixar resultado"}
+            </Button>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">Resultado ainda não disponível.</p>
+        )}
+        {downloadError && <p className="text-xs text-red-600">{downloadError}</p>}
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-3">

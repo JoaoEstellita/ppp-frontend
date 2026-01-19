@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getOrgMetrics, OrgMetrics } from "@/src/services/api";
+import { getOrgMetrics, getOrgUnionCode, updateOrgUnionCode, OrgMetrics } from "@/src/services/api";
+import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
 export default function OrgDashboardPage() {
   const params = useParams();
@@ -14,6 +15,11 @@ export default function OrgDashboardPage() {
       : "";
   const [metrics, setMetrics] = useState<OrgMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const { org } = useOrgAccess();
+  const [unionCode, setUnionCode] = useState<string>("");
+  const [unionCodeActive, setUnionCodeActive] = useState(true);
+  const [unionCodeMessage, setUnionCodeMessage] = useState<string | null>(null);
+  const [savingUnionCode, setSavingUnionCode] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -33,6 +39,44 @@ export default function OrgDashboardPage() {
       active = false;
     };
   }, [slug]);
+
+  useEffect(() => {
+    if (!org?.id) return;
+    let active = true;
+    getOrgUnionCode(org.id)
+      .then((data) => {
+        if (!active) return;
+        setUnionCode(data.union_code ?? "");
+        setUnionCodeActive(data.union_code_active !== false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setUnionCode("");
+        setUnionCodeActive(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [org?.id]);
+
+  async function handleSaveUnionCode() {
+    if (!org?.id) return;
+    setSavingUnionCode(true);
+    setUnionCodeMessage(null);
+    try {
+      const result = await updateOrgUnionCode(org.id, {
+        union_code: unionCode ? unionCode.trim() : null,
+        union_code_active: unionCodeActive,
+      });
+      setUnionCode(result.union_code ?? "");
+      setUnionCodeActive(result.union_code_active !== false);
+      setUnionCodeMessage("Codigo atualizado com sucesso.");
+    } catch {
+      setUnionCodeMessage("Nao foi possivel atualizar o codigo.");
+    } finally {
+      setSavingUnionCode(false);
+    }
+  }
 
   if (loading) {
     return <div className="text-gray-600">Carregando dashboard...</div>;
@@ -87,7 +131,39 @@ export default function OrgDashboardPage() {
           ))}
         </div>
       </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Codigo do sindicato</h3>
+        <p className="text-xs text-gray-500">
+          Compartilhe este codigo com trabalhadores para aplicar o desconto.
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            value={unionCode}
+            onChange={(event) => setUnionCode(event.target.value)}
+            placeholder="Ex: SINDICATO-ABC"
+            className="w-full sm:max-w-xs rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={unionCodeActive}
+              onChange={(event) => setUnionCodeActive(event.target.checked)}
+            />
+            Codigo ativo
+          </label>
+          <button
+            onClick={handleSaveUnionCode}
+            disabled={savingUnionCode}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-70"
+          >
+            {savingUnionCode ? "Salvando..." : "Salvar codigo"}
+          </button>
+        </div>
+        {unionCodeMessage && (
+          <p className="text-xs text-gray-600">{unionCodeMessage}</p>
+        )}
+      </div>
     </div>
   );
 }
-

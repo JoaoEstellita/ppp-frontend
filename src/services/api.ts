@@ -216,6 +216,14 @@ export type OrgMetrics = {
   grossAmount: number;
 };
 
+export type OrgUnionCode = {
+  id: string;
+  union_code: string | null;
+  union_code_active: boolean;
+  union_code_expires_at: string | null;
+  union_code_updated_at: string | null;
+};
+
 export type OrgWorker = {
   id: string;
   name: string | null;
@@ -813,6 +821,26 @@ export async function getOrgMetrics(orgSlug: string, yearMonth?: string): Promis
   const res = await apiFetch(orgPath(orgSlug, `/metrics${suffix}`));
   const data = await handleJsonResponse(res);
   return data as OrgMetrics;
+}
+
+export async function getOrgUnionCode(orgId: string): Promise<OrgUnionCode> {
+  const res = await apiFetch(`/orgs/${orgId}/union-code`);
+  return handleJsonResponse(res);
+}
+
+export async function updateOrgUnionCode(
+  orgId: string,
+  payload: {
+    union_code?: string | null;
+    union_code_active?: boolean;
+    union_code_expires_at?: string | null;
+  }
+): Promise<OrgUnionCode> {
+  const res = await apiFetch(`/orgs/${orgId}/union-code`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return handleJsonResponse(res);
 }
 
 export async function getWorkers(orgSlug: string): Promise<OrgWorker[]> {
@@ -1519,5 +1547,14 @@ export async function reuploadPublicPpp(caseId: string, file: File): Promise<any
     method: 'POST',
     body: formData,
   });
+  return handleJsonResponse(res);
+}
+
+export async function getPublicResultDownload(caseId: string): Promise<{
+  signedUrl: string;
+  fileName?: string | null;
+  expiresIn?: number;
+}> {
+  const res = await apiFetch(`/public/cases/${caseId}/result/download`);
   return handleJsonResponse(res);
 }
