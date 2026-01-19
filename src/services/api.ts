@@ -214,6 +214,8 @@ export type OrgMetrics = {
   statusCounts: Record<string, number>;
   paidCount: number;
   grossAmount: number;
+  referralCount?: number;
+  referralPaidCount?: number;
 };
 
 export type OrgUnionCode = {
@@ -1506,6 +1508,7 @@ export async function createPublicCase(params: {
   workerCPF: string;
   companyName: string;
   companyCNPJ: string;
+  workerEmail?: string;
   unionCode?: string;
   file: File;
 }): Promise<PublicCaseResponse> {
@@ -1514,6 +1517,9 @@ export async function createPublicCase(params: {
   formData.append('workerCPF', params.workerCPF);
   formData.append('companyName', params.companyName);
   formData.append('companyCNPJ', params.companyCNPJ);
+  if (params.workerEmail) {
+    formData.append('email', params.workerEmail);
+  }
   if (params.unionCode) {
     formData.append('union_code', params.unionCode);
   }

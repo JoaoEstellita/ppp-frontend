@@ -41,9 +41,14 @@ function formatCnpj(value: string) {
   return `${p1}.${p2}.${p3}/${p4}-${p5}`.replace(/\/$/, "");
 }
 
+function isValidEmail(value: string) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
+}
+
 export default function PublicCaseNewPage() {
   const [workerName, setWorkerName] = useState("");
   const [workerCPF, setWorkerCPF] = useState("");
+  const [workerEmail, setWorkerEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyCNPJ, setCompanyCNPJ] = useState("");
   const [unionCode, setUnionCode] = useState("");
@@ -99,8 +104,12 @@ export default function PublicCaseNewPage() {
     const cpfDigits = digitsOnly(workerCPF);
     const cnpjDigits = digitsOnly(companyCNPJ);
 
-    if (!workerName || !workerCPF || !companyName || !companyCNPJ || !file) {
+    if (!workerName || !workerCPF || !companyName || !companyCNPJ || !file || !workerEmail) {
       setError("Preencha todos os campos e anexe o PDF.");
+      return;
+    }
+    if (!isValidEmail(workerEmail)) {
+      setError("Email inválido. Informe um email válido.");
       return;
     }
     if (cpfDigits.length !== 11) {
@@ -118,6 +127,7 @@ export default function PublicCaseNewPage() {
       const created = await createPublicCase({
         workerName,
         workerCPF: cpfDigits,
+        workerEmail,
         companyName,
         companyCNPJ: cnpjDigits,
         unionCode: normalizedCode || unionCode.trim() || undefined,
@@ -144,6 +154,8 @@ export default function PublicCaseNewPage() {
           setError("Pagamento já iniciado para este caso.");
         } else if (err.code === "invalid_union_code") {
           setError("Código inválido ou expirado.");
+        } else if (err.code === "invalid_email") {
+          setError("Email inválido.");
         } else {
           setError(err.message || "Não foi possível criar o caso.");
         }
@@ -184,6 +196,15 @@ export default function PublicCaseNewPage() {
             <input
               value={formatCpf(workerCPF)}
               onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="text-xs text-gray-600">
+            Email
+            <input
+              type="email"
+              value={workerEmail}
+              onChange={(event) => setWorkerEmail(event.target.value)}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </label>

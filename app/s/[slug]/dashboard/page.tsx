@@ -118,6 +118,18 @@ export default function OrgDashboardPage() {
             {statusCounts.done ?? 0}
           </div>
         </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-xs uppercase text-gray-500">Casos via código</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {metrics.referralCount ?? 0}
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-xs uppercase text-gray-500">Pagos via código</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {metrics.referralPaidCount ?? 0}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-4">
