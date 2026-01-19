@@ -1445,3 +1445,79 @@ export async function adminUpdateCaseDetails(
 
 
 
+export type PublicUnionCodeResponse = {
+  valid: boolean;
+  org_name?: string | null;
+  price: number;
+  normalized_code?: string;
+};
+
+export type PublicCaseResponse = {
+  case_id: string;
+  status: string;
+  price: number;
+  ref_org_id?: string | null;
+  union_code_applied?: string | null;
+};
+
+export type PublicCaseDetail = {
+  case: any;
+  payment: any | null;
+};
+
+export async function validateUnionCodePublic(code: string): Promise<PublicUnionCodeResponse> {
+  const res = await apiFetch('/public/union-code/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+  return handleJsonResponse(res);
+}
+
+export async function createPublicCase(params: {
+  workerName: string;
+  workerCPF: string;
+  companyName: string;
+  companyCNPJ: string;
+  unionCode?: string;
+  file: File;
+}): Promise<PublicCaseResponse> {
+  const formData = new FormData();
+  formData.append('workerName', params.workerName);
+  formData.append('workerCPF', params.workerCPF);
+  formData.append('companyName', params.companyName);
+  formData.append('companyCNPJ', params.companyCNPJ);
+  if (params.unionCode) {
+    formData.append('union_code', params.unionCode);
+  }
+  formData.append('file', params.file);
+
+  const res = await apiFetch('/public/cases', {
+    method: 'POST',
+    body: formData,
+  });
+
+  return handleJsonResponse(res);
+}
+
+export async function createPublicPayment(caseId: string): Promise<{ payment_url: string; final_price: number }> {
+  const res = await apiFetch(`/public/cases/${caseId}/payment`, {
+    method: 'POST',
+  });
+  return handleJsonResponse(res);
+}
+
+export async function getPublicCase(caseId: string): Promise<PublicCaseDetail> {
+  const res = await apiFetch(`/public/cases/${caseId}`);
+  return handleJsonResponse(res);
+}
+
+export async function reuploadPublicPpp(caseId: string, file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await apiFetch(`/public/cases/${caseId}/ppp`, {
+    method: 'POST',
+    body: formData,
+  });
+  return handleJsonResponse(res);
+}
