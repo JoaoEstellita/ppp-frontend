@@ -57,6 +57,34 @@ function resolvePublicErrorMessage(code?: string | null, message?: string | null
   }
 }
 
+function formatPaymentStatus(status?: string | null) {
+  switch (status) {
+    case "approved":
+      return "Confirmado";
+    case "pending":
+      return "Pendente";
+    case "in_process":
+      return "Em processamento";
+    case "rejected":
+      return "Rejeitado";
+    default:
+      return status || "pendente";
+  }
+}
+
+function paymentBadgeClass(status?: string | null) {
+  switch (status) {
+    case "approved":
+      return "bg-green-100 text-green-700";
+    case "rejected":
+      return "bg-red-100 text-red-700";
+    case "in_process":
+      return "bg-yellow-100 text-yellow-700";
+    default:
+      return "bg-gray-100 text-gray-600";
+  }
+}
+
 export default function PublicCaseStatusPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -258,9 +286,12 @@ export default function PublicCaseStatusPage() {
 
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
         <h3 className="text-sm font-semibold text-gray-700">Pagamento</h3>
-        <p className="text-xs text-gray-500">
-          Status: {paymentStatus || "pendente"}
-        </p>
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span>Status:</span>
+          <span className={`rounded-full px-2 py-1 ${paymentBadgeClass(paymentStatus)}`}>
+            {formatPaymentStatus(paymentStatus)}
+          </span>
+        </div>
         {paymentUrl ? (
           <a
             href={paymentUrl}

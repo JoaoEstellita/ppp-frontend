@@ -19,6 +19,28 @@ function formatPrice(value: number) {
   }).format(value);
 }
 
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatCpf(value: string) {
+  const digits = digitsOnly(value).slice(0, 11);
+  if (!digits) return "";
+  const parts = [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 9), digits.slice(9, 11)];
+  return parts.filter(Boolean).join(".").replace(/\.(\d{2})$/, "-$1");
+}
+
+function formatCnpj(value: string) {
+  const digits = digitsOnly(value).slice(0, 14);
+  if (!digits) return "";
+  const p1 = digits.slice(0, 2);
+  const p2 = digits.slice(2, 5);
+  const p3 = digits.slice(5, 8);
+  const p4 = digits.slice(8, 12);
+  const p5 = digits.slice(12, 14);
+  return `${p1}.${p2}.${p3}/${p4}-${p5}`.replace(/\/$/, "");
+}
+
 export default function PublicCaseNewPage() {
   const [workerName, setWorkerName] = useState("");
   const [workerCPF, setWorkerCPF] = useState("");
@@ -148,8 +170,8 @@ export default function PublicCaseNewPage() {
           <label className="text-xs text-gray-600">
             CPF
             <input
-              value={workerCPF}
-              onChange={(event) => setWorkerCPF(event.target.value)}
+              value={formatCpf(workerCPF)}
+              onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -164,8 +186,8 @@ export default function PublicCaseNewPage() {
           <label className="text-xs text-gray-600">
             CNPJ
             <input
-              value={companyCNPJ}
-              onChange={(event) => setCompanyCNPJ(event.target.value)}
+              value={formatCnpj(companyCNPJ)}
+              onChange={(event) => setCompanyCNPJ(digitsOnly(event.target.value))}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -213,7 +235,7 @@ export default function PublicCaseNewPage() {
             {normalizedCode && (
               <div className="mt-1 text-xs text-gray-500">
                 <div>Preço padrão: {formatPrice(BASE_PRICE)}</div>
-                <div>Desconto aplicado com código do sindicato.</div>
+                <div>Você economiza {formatPrice(BASE_PRICE - price)} com o código.</div>
               </div>
             )}
           </div>
