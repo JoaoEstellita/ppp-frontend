@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ApiError,
@@ -32,6 +32,13 @@ export default function PublicCaseNewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [caseId, setCaseId] = useState<string | null>(null);
+  const [lastCaseId, setLastCaseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("ppp:last_case_id");
+    if (stored) setLastCaseId(stored);
+  }, []);
 
   const handleValidateCode = async () => {
     if (!unionCode.trim()) {
@@ -83,6 +90,10 @@ export default function PublicCaseNewPage() {
         file,
       });
       setCaseId(created.case_id);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("ppp:last_case_id", created.case_id);
+        setLastCaseId(created.case_id);
+      }
 
       const payment = await createPublicPayment(created.case_id);
       if (payment?.payment_url) {
@@ -117,6 +128,11 @@ export default function PublicCaseNewPage() {
         <p className="text-sm text-gray-600">
           Preencha os dados do trabalhador e envie o PDF do PPP para iniciar a análise.
         </p>
+        {lastCaseId && (
+          <p className="text-xs text-gray-500">
+            Você já iniciou um caso. <Link className="text-blue-600 hover:underline" href={`/ppp/${lastCaseId}`}>Retomar caso</Link>
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
@@ -174,9 +190,7 @@ export default function PublicCaseNewPage() {
             </div>
           </label>
           {normalizedCode && (
-            <p className="text-xs text-green-700 mt-2">
-              Código aplicado: {normalizedCode}
-            </p>
+            <p className="text-xs text-green-700 mt-2">Código aplicado: {normalizedCode}</p>
           )}
         </div>
 
