@@ -123,6 +123,11 @@ export default function OrgDashboardPage() {
           <div className="text-2xl font-semibold text-gray-900">
             {metrics.referralCount ?? 0}
           </div>
+          <div className="text-xs mt-2">
+            <Link className="text-blue-600 hover:underline" href={`/s/${slug}/casos-via-codigo`}>
+              Ver casos
+            </Link>
+          </div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-xs uppercase text-gray-500">Pagos via código</div>

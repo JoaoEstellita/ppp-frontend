@@ -845,6 +845,16 @@ export async function updateOrgUnionCode(
   return handleJsonResponse(res);
 }
 
+export async function getReferralCases(
+  orgId: string,
+  params?: { limit?: number; offset?: number }
+): Promise<ReferralCasesResponse> {
+  const limit = params?.limit ?? 20;
+  const offset = params?.offset ?? 0;
+  const res = await apiFetch(`/orgs/${orgId}/referral-cases?limit=${limit}&offset=${offset}`);
+  return handleJsonResponse(res);
+}
+
 export async function getWorkers(orgSlug: string): Promise<OrgWorker[]> {
   const res = await apiFetch(orgPath(orgSlug, "/workers"));
   const data = await handleJsonResponse(res);
@@ -1282,6 +1292,25 @@ export type DownloadResponse = {
   signedUrl: string;
   fileName: string;
   expiresIn: number;
+};
+
+export type ReferralCaseRow = {
+  id: string;
+  status: CaseStatus | string;
+  created_at: string | null;
+  union_code_applied?: string | null;
+  last_n8n_status?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  worker?: { name?: string | null; cpf?: string | null } | null;
+  company?: { name?: string | null; cnpj?: string | null } | null;
+};
+
+export type ReferralCasesResponse = {
+  data: ReferralCaseRow[];
+  count: number;
+  limit: number;
+  offset: number;
 };
 
 export type UpdateCaseDetailsPayload = {
