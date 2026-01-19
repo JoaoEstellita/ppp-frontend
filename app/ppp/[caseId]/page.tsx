@@ -283,7 +283,10 @@ export default function PublicCaseStatusPage() {
         <h3 className="text-sm font-semibold text-gray-700">Resultado</h3>
         {resultDoc ? (
           <>
-            <p className="text-xs text-gray-500">Documento pronto para download.</p>
+            <p className="text-xs text-gray-500">
+              Documento pronto para download.
+              {resultDoc?.original_name ? ` Arquivo: ${resultDoc.original_name}` : ""}
+            </p>
             <Button
               onClick={handleDownloadResult}
               disabled={downloadingResult}

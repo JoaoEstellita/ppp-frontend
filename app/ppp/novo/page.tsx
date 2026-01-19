@@ -210,6 +210,12 @@ export default function PublicCaseNewPage() {
           <div>
             <p className="text-xs text-gray-500">Preço final</p>
             <p className="text-lg font-semibold text-gray-900">{formatPrice(price)}</p>
+            {normalizedCode && (
+              <div className="mt-1 text-xs text-gray-500">
+                <div>Preço padrão: {formatPrice(BASE_PRICE)}</div>
+                <div>Desconto aplicado com código do sindicato.</div>
+              </div>
+            )}
           </div>
           <Button
             onClick={handleSubmit}

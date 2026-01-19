@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/Button";
 
 export default function PublicLandingPage() {
+  const router = useRouter();
   const [lastCaseId, setLastCaseId] = useState<string | null>(null);
+  const [caseLookup, setCaseLookup] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -35,6 +38,28 @@ export default function PublicLandingPage() {
               <Button variant="outline">Retomar meu caso</Button>
             </Link>
           )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6 space-y-3">
+        <p className="text-sm text-gray-700">Já tem o código do caso?</p>
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={caseLookup}
+            onChange={(event) => setCaseLookup(event.target.value)}
+            placeholder="Informe o código do caso"
+            className="flex-1 min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (caseLookup.trim()) {
+                router.push(`/ppp/${caseLookup.trim()}`);
+              }
+            }}
+          >
+            Acompanhar
+          </Button>
         </div>
       </div>
 
