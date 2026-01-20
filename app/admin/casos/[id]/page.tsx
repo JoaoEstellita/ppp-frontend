@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ import {
   adminSubmitCase,
   adminMarkCaseAsError,
   adminUploadPppInput,
+  adminResendPublicEmail,
   CaseEvent,
 } from "@/src/services/api";
 
@@ -179,6 +180,21 @@ export default function AdminCaseDetailPage() {
     }
   };
 
+  const handleResendPublicEmail = async () => {
+    if (!caseId) return;
+    setActionLoading("resend-public-email");
+    setFeedback(null);
+    try {
+      const result = await adminResendPublicEmail(caseId);
+      setFeedback({ type: "success", text: String(result?.message ?? "Email reenviado com sucesso.") });
+      await loadCase();
+      await loadCaseEvents();
+    } catch (err) {
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const handleReuploadFile = async (file: File) => {
     if (!caseId) return;
     try {
@@ -191,7 +207,7 @@ export default function AdminCaseDetailPage() {
     } catch (err) {
       setReuploadMessage({
         type: "error",
-        text: err instanceof Error ? err.message : "Nao foi possivel reenviar o PPP.",
+        text: err instanceof Error ? err.message : "Não foi possível reenviar o PPP.",
       });
     } finally {
       setReuploading(false);
@@ -364,7 +380,7 @@ export default function AdminCaseDetailPage() {
               {/* Botão DEV para marcar como pago */}
               {isDevModeEnabled && caseData.status === "awaiting_payment" && (
                 <div className="pt-3 border-t border-dashed border-orange-300">
-                  <p className="text-xs text-orange-600 mb-2">🛠️ Modo desenvolvimento (Admin)</p>
+                  <p className="text-xs text-orange-600 mb-2">Modo desenvolvimento (Admin)</p>
                   <Button
                     onClick={handleDevMarkPaid}
                     disabled={actionLoading === "mark-paid"}
@@ -385,7 +401,7 @@ export default function AdminCaseDetailPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-600">Status N8N</h3>
             {isStuck() && (
-              <Badge variant="warning">⚠️ Sem retorno do n8n</Badge>
+              <Badge variant="warning">Sem retorno do n8n</Badge>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
@@ -500,12 +516,31 @@ export default function AdminCaseDetailPage() {
               {actionLoading === "reset-pdf" ? "Resetando..." : "Resetar para aguardando PDF"}
             </Button>
           )}
+
+          {/* Reenviar email para trabalhador (B2C) */}
+          {caseData.user_email ? (
+            <Button
+              onClick={handleResendPublicEmail}
+              disabled={actionLoading === "resend-public-email"}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {actionLoading === "resend-public-email" ? "Enviando..." : "Reenviar email do trabalhador"}
+            </Button>
+          ) : (
+            <Button
+              disabled={true}
+              title="Email do trabalhador não informado"
+              className="bg-gray-300 text-gray-600 cursor-not-allowed"
+            >
+              Reenviar email do trabalhador
+            </Button>
+          )}
         </div>
 
         {/* Aviso sobre override */}
         {isDevModeEnabled && caseData.status === "awaiting_payment" && (
           <p className="mt-3 text-xs text-orange-600">
-            ⚠️ Override manual NÃO cria pagamento real e NÃO conta em receita/relatórios.
+            Override manual NÃO cria pagamento real e NÃO conta em receita/relatórios.
           </p>
         )}
       </div>
@@ -531,8 +566,8 @@ export default function AdminCaseDetailPage() {
                 <p className="text-xs text-red-500">Ocorrido em: {formatDate(caseData.last_error_at)}</p>
               )}
               <div className="mt-3 text-xs text-gray-700 bg-white border border-red-100 rounded p-3">
-                <p className="font-semibold text-gray-800">Ultimo problema</p>
-                <p>Codigo: {caseData.last_error_code || "-"}</p>
+                <p className="font-semibold text-gray-800">Último problema</p>
+                <p>Código: {caseData.last_error_code || "-"}</p>
                 <p>Mensagem: {caseData.last_error_message || "-"}</p>
                 <p>Etapa: {caseData.last_error_step || "-"}</p>
                 <p>Status N8N: {caseData.last_n8n_status || "-"}</p>
@@ -727,3 +762,15 @@ export default function AdminCaseDetailPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

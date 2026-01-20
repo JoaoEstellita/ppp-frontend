@@ -1,4 +1,4 @@
-import { supabaseClient } from "@/lib/supabaseClient";
+﻿import { supabaseClient } from "@/lib/supabaseClient";
 
 // Central API client para o frontend
 // Este arquivo fornece um conjunto de funcoes para consumir o backend PPP.
@@ -994,7 +994,7 @@ export type SyncMembershipResponse = {
 };
 
 /**
- * Sincroniza membership do usuário - aceita convite pendente se existir
+ * Sincroniza membership do usuÃ¡rio - aceita convite pendente se existir
  */
 export async function syncMembership(): Promise<SyncMembershipResponse> {
   const res = await apiFetch("/auth/sync-membership", {
@@ -1133,7 +1133,7 @@ export async function adminListSupportCases(filter?: "open" | "all" | "error" | 
 }
 
 /**
- * Admin força retry de um caso
+ * Admin forÃ§a retry de um caso
  */
 export async function adminRetryCase(caseId: string): Promise<RetryResponse> {
   const res = await apiFetch(`/admin/support/cases/${caseId}/retry`, {
@@ -1144,7 +1144,17 @@ export async function adminRetryCase(caseId: string): Promise<RetryResponse> {
 }
 
 /**
- * Admin resolve solicitação de suporte
+ * Admin reenvia email publico do trabalhador
+ */
+export async function adminResendPublicEmail(caseId: string): Promise<{ ok: boolean; message?: string }> {
+  const res = await apiFetch(`/admin/support/cases/${caseId}/resend-public-email`, {
+    method: "POST",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message?: string };
+}
+/**
+ * Admin resolve solicitaÃ§Ã£o de suporte
  */
 export async function adminResolveSupport(requestId: string): Promise<{ ok: boolean; message: string }> {
   const res = await apiFetch(`/admin/support/requests/${requestId}/resolve`, {
@@ -1204,7 +1214,7 @@ export async function adminListCaseEvents(caseId: string, limit?: number): Promi
   return Array.isArray(data) ? data : [];
 }
 
-// ========== SUBMIT PARA ANÁLISE (N8N) ==========
+// ========== SUBMIT PARA ANÃLISE (N8N) ==========
 
 export type SubmitResponse = {
   ok: boolean;
@@ -1214,7 +1224,7 @@ export type SubmitResponse = {
 };
 
 /**
- * Sindicato envia caso para análise (n8n)
+ * Sindicato envia caso para anÃ¡lise (n8n)
  */
 export async function submitCase(orgSlug: string, caseId: string): Promise<SubmitResponse> {
   const res = await apiFetch(orgPath(orgSlug, `/cases/${caseId}/submit`), {
@@ -1225,7 +1235,7 @@ export async function submitCase(orgSlug: string, caseId: string): Promise<Submi
 }
 
 /**
- * Admin envia caso para análise (n8n)
+ * Admin envia caso para anÃ¡lise (n8n)
  */
 export async function adminSubmitCase(caseId: string): Promise<SubmitResponse> {
   const res = await apiFetch(`/admin/cases/${caseId}/submit`, {
@@ -1236,7 +1246,7 @@ export async function adminSubmitCase(caseId: string): Promise<SubmitResponse> {
 }
 
 /**
- * Admin envia múltiplos casos para análise em lote
+ * Admin envia mÃºltiplos casos para anÃ¡lise em lote
  */
 export async function adminSubmitBulk(params?: { status?: string; limit?: number }): Promise<{
   ok: boolean;
@@ -1427,6 +1437,7 @@ export type AdminCaseDetail = {
     created_at: string;
     updated_at: string | null;
     user_id: string;
+    user_email: string | null;
     retry_count: number;
     last_error_code: string | null;
     last_error_message: string | null;
@@ -1461,7 +1472,7 @@ export async function adminListCases(status?: string): Promise<AdminCaseItem[]> 
 }
 
 /**
- * Admin obtém detalhes de um caso
+ * Admin obtÃ©m detalhes de um caso
  */
 export async function adminGetCase(caseId: string): Promise<AdminCaseDetail> {
   const res = await apiFetch(`/admin/cases/${caseId}`);
@@ -1593,3 +1604,5 @@ export async function getPublicResultDownload(caseId: string): Promise<{
   const res = await apiFetch(`/public/cases/${caseId}/result/download`);
   return handleJsonResponse(res);
 }
+
+
