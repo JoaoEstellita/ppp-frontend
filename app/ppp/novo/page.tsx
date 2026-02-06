@@ -95,6 +95,16 @@ export default function PublicCaseNewPage() {
     setCurrentStep(3);
   }, [workerName, workerCPF, workerEmail, companyName, companyCNPJ, selectedFile]);
 
+  useEffect(() => {
+    if (!normalizedCode) return;
+    const normalizedInput = unionCodeInput.trim().toUpperCase().replace(/[\s-]+/g, "");
+    if (normalizedInput !== normalizedCode) {
+      setNormalizedCode(null);
+      setCodeState("idle");
+      setCodeFeedback("Código alterado. Clique em Aplicar para validar novamente.");
+    }
+  }, [unionCodeInput, normalizedCode]);
+
   const canSubmit = useMemo(() => {
     if (submitting) return false;
     const cpf = digitsOnly(workerCPF);

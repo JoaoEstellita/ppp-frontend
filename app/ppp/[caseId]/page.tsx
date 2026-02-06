@@ -114,7 +114,8 @@ export default function PublicCaseStatusPage() {
   const caseId = params?.caseId as string | undefined;
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [caseDetail, setCaseDetail] = useState<any | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [creatingPayment, setCreatingPayment] = useState(false);
@@ -129,7 +130,7 @@ export default function PublicCaseStatusPage() {
     if (!caseId) return;
     try {
       setLoading(true);
-      setError(null);
+      setFetchError(null);
       const response = await getPublicCase(caseId);
       setCaseDetail(response);
       setPaymentUrl(response?.payment?.payment_url ?? null);
@@ -142,9 +143,9 @@ export default function PublicCaseStatusPage() {
           typeof err.details === "object" && err.details !== null
             ? (err.details as any).message || (err.details as any).error
             : null;
-        setError(detailsMessage || err.message || "Erro ao buscar caso");
+        setFetchError(detailsMessage || err.message || "Erro ao buscar caso");
       } else {
-        setError("Erro ao buscar caso");
+        setFetchError("Erro ao buscar caso");
       }
     } finally {
       setLoading(false);
@@ -207,27 +208,27 @@ export default function PublicCaseStatusPage() {
   async function handleGeneratePayment() {
     if (!caseId) return;
     setCreatingPayment(true);
-    setError(null);
+    setActionError(null);
     try {
       const response = await createPublicPayment(caseId);
       if (response?.payment_url) {
         window.location.href = response.payment_url;
         return;
       }
-      setError("Pagamento criado, mas o link não foi retornado.");
+      setActionError("Pagamento criado, mas o link não foi retornado.");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {
-          setError("Pagamento já iniciado para este caso.");
+          setActionError("Pagamento já iniciado para este caso.");
         } else {
           const detailsMessage =
             typeof err.details === "object" && err.details !== null
               ? (err.details as any).message || (err.details as any).error
               : null;
-          setError(detailsMessage || err.message || "Erro ao gerar link de pagamento");
+          setActionError(detailsMessage || err.message || "Erro ao gerar link de pagamento");
         }
       } else {
-        setError("Erro ao gerar link de pagamento");
+        setActionError("Erro ao gerar link de pagamento");
       }
     } finally {
       setCreatingPayment(false);
@@ -304,20 +305,23 @@ export default function PublicCaseStatusPage() {
     return <div className="px-6 py-10 text-sm text-slate-600">Carregando caso...</div>;
   }
 
-  if (error) {
+  if (fetchError) {
     return (
       <main className="mx-auto max-w-4xl px-6 py-10">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{fetchError}</div>
         <div className="mt-4 flex gap-3">
           <Link href="/ppp/novo" className="text-sm font-medium text-blue-700 hover:underline">
             Criar novo caso
           </Link>
-          <Link href="/ppp" className="text-sm font-medium text-slate-700 hover:underline">
-            Voltar para início
-          </Link>
-        </div>
-      </main>
-    );
+            <Link href="/ppp" className="text-sm font-medium text-slate-700 hover:underline">
+              Voltar para início
+            </Link>
+            <button className="text-sm font-medium text-slate-700 hover:underline" onClick={fetchCase}>
+              Tentar novamente
+            </button>
+          </div>
+        </main>
+      );
   }
 
   if (!caseDetail?.case) {
@@ -353,6 +357,11 @@ export default function PublicCaseStatusPage() {
             <p className="font-semibold">Último problema</p>
             <p className="mt-1">{resolvePublicErrorMessage(lastErrorCode, lastErrorMessage)}</p>
             {lastErrorStep && <p className="mt-1 text-xs">Etapa: {lastErrorStep}</p>}
+          </div>
+        )}
+        {actionError && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+            {actionError}
           </div>
         )}
 
