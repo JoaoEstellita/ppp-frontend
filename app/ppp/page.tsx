@@ -35,10 +35,10 @@ export default function PublicLandingPage() {
               Fluxo do trabalhador
             </p>
             <h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">
-              Envie seu PPP e acompanhe cada etapa em um só lugar
+              Envie seu PPP e acompanhe cada etapa em um so lugar
             </h1>
             <p className="mt-4 max-w-2xl text-sm text-blue-50 sm:text-base">
-              Preencha os dados, envie o PDF, aplique o código do sindicato se tiver e acompanhe o status até o resultado final.
+              Preencha os dados, envie o PDF, aplique o codigo do sindicato se tiver e acompanhe o status ate o resultado final.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -58,11 +58,16 @@ export default function PublicLandingPage() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/ppp/novo">
-                <Button className="bg-white text-blue-700 hover:bg-blue-50">Iniciar agora</Button>
+                <Button className="bg-slate-900 text-white hover:bg-slate-800">
+                  Iniciar agora
+                </Button>
               </Link>
               {lastCaseId && (
                 <Link href={`/ppp/${lastCaseId}`}>
-                  <Button variant="outline" className="border-white/60 bg-transparent text-white hover:bg-white/10">
+                  <Button
+                    variant="outline"
+                    className="border-white/60 bg-transparent text-white hover:bg-white/10"
+                  >
                     Retomar caso recente
                   </Button>
                 </Link>
@@ -74,7 +79,7 @@ export default function PublicLandingPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Retomar caso</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Se você já criou um caso, informe o código para abrir o acompanhamento.
+                Se voce ja criou um caso, informe o codigo para abrir o acompanhamento.
               </p>
               <div className="mt-4 flex gap-2">
                 <input
@@ -93,7 +98,7 @@ export default function PublicLandingPage() {
               </div>
               {lastCaseId && (
                 <p className="mt-3 text-xs text-slate-500">
-                  Último caso salvo:{" "}
+                  Ultimo caso salvo:{" "}
                   <Link className="text-blue-700 hover:underline" href={`/ppp/${lastCaseId}`}>
                     {formatCaseId(lastCaseId)}
                   </Link>
@@ -102,18 +107,18 @@ export default function PublicLandingPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Preço e código do sindicato</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Desconto com codigo do sindicato</h3>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>Sem código: R$ 87,90</li>
-                <li>Com código válido: R$ 67,90</li>
-                <li>O preço final é calculado no backend</li>
+                <li>Sem codigo: R$ 87,90</li>
+                <li>Com codigo valido: R$ 67,90</li>
+                <li>Use o codigo informado pelo seu sindicato para economizar R$ 20,00.</li>
               </ul>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">Acesso sindicato/admin</h3>
               <p className="mt-2 text-sm text-slate-600">
-                Para gestão de casos do sindicato, use o portal interno.
+                Para gestao de casos do sindicato, use o portal interno.
               </p>
               <div className="mt-3">
                 <Link className="text-sm font-medium text-blue-700 hover:underline" href="/login">
