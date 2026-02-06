@@ -58,7 +58,7 @@ export default function PublicLandingPage() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/ppp/novo">
-                <Button className="bg-slate-900 text-white hover:bg-slate-800">
+                <Button className="bg-blue-900 text-white hover:bg-blue-800">
                   Iniciar agora
                 </Button>
               </Link>
