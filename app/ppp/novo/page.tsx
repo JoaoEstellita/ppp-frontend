@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   createPublicCase,
@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/Button";
 
 const BASE_PRICE = 87.9;
+const DISCOUNT_PRICE = 67.9;
+const MAX_PDF_MB = 5;
 
 function formatPrice(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -26,8 +28,11 @@ function digitsOnly(value: string) {
 function formatCpf(value: string) {
   const digits = digitsOnly(value).slice(0, 11);
   if (!digits) return "";
-  const parts = [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 9), digits.slice(9, 11)];
-  return parts.filter(Boolean).join(".").replace(/\.(\d{2})$/, "-$1");
+  const part1 = digits.slice(0, 3);
+  const part2 = digits.slice(3, 6);
+  const part3 = digits.slice(6, 9);
+  const part4 = digits.slice(9, 11);
+  return `${part1}.${part2}.${part3}-${part4}`.replace(/[-.]$/, "");
 }
 
 function formatCnpj(value: string) {
@@ -38,14 +43,14 @@ function formatCnpj(value: string) {
   const p3 = digits.slice(5, 8);
   const p4 = digits.slice(8, 12);
   const p5 = digits.slice(12, 14);
-  return `${p1}.${p2}.${p3}/${p4}-${p5}`.replace(/\/$/, "");
+  return `${p1}.${p2}.${p3}/${p4}-${p5}`.replace(/[-./]$/, "");
 }
 
 function isValidEmail(value: string) {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
 }
 
-const MAX_PDF_MB = 5;
+type CodeState = "idle" | "validating" | "valid" | "invalid";
 
 export default function PublicCaseNewPage() {
   const [workerName, setWorkerName] = useState("");
@@ -53,95 +58,134 @@ export default function PublicCaseNewPage() {
   const [workerEmail, setWorkerEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyCNPJ, setCompanyCNPJ] = useState("");
-  const [unionCode, setUnionCode] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [price, setPrice] = useState<number>(BASE_PRICE);
+  const [unionCodeInput, setUnionCodeInput] = useState("");
   const [normalizedCode, setNormalizedCode] = useState<string | null>(null);
-  const [loadingCode, setLoadingCode] = useState(false);
+  const [codeState, setCodeState] = useState<CodeState>("idle");
+  const [codeFeedback, setCodeFeedback] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [slowSubmit, setSlowSubmit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [caseId, setCaseId] = useState<string | null>(null);
   const [lastCaseId, setLastCaseId] = useState<string | null>(null);
-  const [slowSubmit, setSlowSubmit] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+
+  const finalPrice = normalizedCode ? DISCOUNT_PRICE : BASE_PRICE;
+  const discountAmount = BASE_PRICE - finalPrice;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("ppp:last_case_id");
-    if (stored) setLastCaseId(stored);
+    const storedCaseId = window.localStorage.getItem("ppp:last_case_id");
+    if (storedCaseId) {
+      setLastCaseId(storedCaseId);
+    }
   }, []);
 
-  const handleValidateCode = async () => {
-    if (!unionCode.trim()) {
-      setNormalizedCode(null);
-      setPrice(BASE_PRICE);
+  useEffect(() => {
+    const hasData = Boolean(workerName || workerCPF || workerEmail || companyName || companyCNPJ);
+    const hasFile = Boolean(selectedFile);
+    if (!hasData) {
+      setCurrentStep(1);
       return;
     }
-    setLoadingCode(true);
+    if (!hasFile) {
+      setCurrentStep(2);
+      return;
+    }
+    setCurrentStep(3);
+  }, [workerName, workerCPF, workerEmail, companyName, companyCNPJ, selectedFile]);
+
+  const canSubmit = useMemo(() => {
+    if (submitting) return false;
+    const cpf = digitsOnly(workerCPF);
+    const cnpj = digitsOnly(companyCNPJ);
+    return (
+      workerName.trim().length > 0 &&
+      cpf.length === 11 &&
+      workerEmail.trim().length > 0 &&
+      isValidEmail(workerEmail) &&
+      companyName.trim().length > 0 &&
+      cnpj.length === 14 &&
+      Boolean(selectedFile)
+    );
+  }, [workerName, workerCPF, workerEmail, companyName, companyCNPJ, selectedFile, submitting]);
+
+  async function handleApplyUnionCode() {
+    const rawCode = unionCodeInput.trim();
+    if (!rawCode) {
+      setNormalizedCode(null);
+      setCodeState("idle");
+      setCodeFeedback(null);
+      return;
+    }
+
+    setCodeState("validating");
+    setCodeFeedback(null);
     setError(null);
+
     try {
-      const result = await validateUnionCodePublic(unionCode.trim());
+      const result = await validateUnionCodePublic(rawCode);
       if (result.valid) {
-        setPrice(result.price ?? BASE_PRICE);
-        setNormalizedCode(result.normalized_code || unionCode.trim().toUpperCase());
+        setNormalizedCode(result.normalized_code || rawCode.toUpperCase());
+        setCodeState("valid");
+        setCodeFeedback("Código aplicado com sucesso.");
+      } else {
+        setNormalizedCode(null);
+        setCodeState("invalid");
+        setCodeFeedback("Código inválido ou expirado.");
       }
     } catch (err) {
+      setNormalizedCode(null);
+      setCodeState("invalid");
       if (err instanceof ApiError) {
         if (err.status === 404) {
-          setError("Código inválido ou expirado.");
+          setCodeFeedback("Código inválido ou expirado.");
         } else if (err.status === 400) {
-          setError("Código em formato inválido.");
+          setCodeFeedback("Formato de código inválido.");
+        } else if (err.status === 429) {
+          setCodeFeedback("Muitas tentativas. Aguarde um minuto.");
         } else {
-          setError(err.message || "Não foi possível validar o código.");
+          setCodeFeedback(err.message || "Não foi possível validar o código.");
         }
       } else {
-        setError("Não foi possível validar o código.");
+        setCodeFeedback("Não foi possível validar o código.");
       }
-      setNormalizedCode(null);
-      setPrice(BASE_PRICE);
-    } finally {
-      setLoadingCode(false);
     }
-  };
+  }
 
-  const handleSubmit = async () => {
+  async function handleCreateCase() {
     const cpfDigits = digitsOnly(workerCPF);
     const cnpjDigits = digitsOnly(companyCNPJ);
 
-    if (!workerName || !workerCPF || !companyName || !companyCNPJ || !file || !workerEmail) {
-      setError("Preencha todos os campos e anexe o PDF.");
+    if (!selectedFile) {
+      setError("Anexe o PDF do PPP para continuar.");
       return;
     }
-    if (file && file.size > MAX_PDF_MB * 1024 * 1024) {
-      setError(`Arquivo muito grande. Envie um PDF com até ${MAX_PDF_MB}MB.`);
+    if (selectedFile.size > MAX_PDF_MB * 1024 * 1024) {
+      setError(`Arquivo muito grande. Envie um PDF de até ${MAX_PDF_MB}MB.`);
       return;
     }
     if (!isValidEmail(workerEmail)) {
-      setError("Email inválido. Informe um email válido.");
-      return;
-    }
-    if (cpfDigits.length !== 11) {
-      setError("CPF inválido. Informe 11 dígitos.");
-      return;
-    }
-    if (cnpjDigits.length !== 14) {
-      setError("CNPJ inválido. Informe 14 dígitos.");
+      setError("Informe um email válido.");
       return;
     }
 
     setSubmitting(true);
-    setError(null);
     setSlowSubmit(false);
-    const slowTimer = window.setTimeout(() => setSlowSubmit(true), 20000);
+    setError(null);
+    const timer = window.setTimeout(() => setSlowSubmit(true), 20000);
+
     try {
       const created = await createPublicCase({
-        workerName,
+        workerName: workerName.trim(),
         workerCPF: cpfDigits,
-        workerEmail,
-        companyName,
+        workerEmail: workerEmail.trim(),
+        companyName: companyName.trim(),
         companyCNPJ: cnpjDigits,
-        unionCode: normalizedCode || unionCode.trim() || undefined,
-        file,
+        unionCode: normalizedCode || undefined,
+        file: selectedFile,
       });
+
       setCaseId(created.case_id);
       if (typeof window !== "undefined") {
         window.localStorage.setItem("ppp:last_case_id", created.case_id);
@@ -153,174 +197,250 @@ export default function PublicCaseNewPage() {
         window.location.href = payment.payment_url;
         return;
       }
+
+      setError("Caso criado, mas não foi possível abrir o pagamento automaticamente.");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 413) {
-          setError("Arquivo muito grande. Envie um PDF menor.");
+          setError(`Arquivo muito grande. Envie um PDF de até ${MAX_PDF_MB}MB.`);
         } else if (err.code === "worker_cpf_conflict") {
-          setError("CPF já cadastrado com outro nome. Corrija os dados.");
+          setError("CPF já cadastrado com outro nome nesta organização.");
         } else if (err.status === 409) {
           setError("Pagamento já iniciado para este caso.");
         } else if (err.code === "invalid_union_code") {
-          setError("Código inválido ou expirado.");
+          setError("Código do sindicato inválido.");
         } else if (err.code === "invalid_email") {
           setError("Email inválido.");
         } else {
-          setError(err.message || "Não foi possível criar o caso.");
+          const detailsMessage =
+            typeof err.details === "object" && err.details !== null
+              ? (err.details as any).message || (err.details as any).error
+              : null;
+          setError(detailsMessage || err.message || "Não foi possível concluir o envio.");
         }
       } else {
-        setError("Não foi possível criar o caso.");
+        setError("Não foi possível concluir o envio.");
       }
     } finally {
-      window.clearTimeout(slowTimer);
+      window.clearTimeout(timer);
       setSubmitting(false);
     }
-  };
+  }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-gray-900">Análise do PPP</h1>
-        <p className="text-sm text-gray-600">
-          Preencha os dados do trabalhador e envie o PDF do PPP para iniciar a análise.
-        </p>
-        {lastCaseId && (
-          <p className="text-xs text-gray-500">
-            Você já iniciou um caso. <Link className="text-blue-600 hover:underline" href={`/ppp/${lastCaseId}`}>Retomar caso</Link>
-          </p>
-        )}
-        <div className="text-xs text-gray-500 space-y-1">
-          <p>Após o pagamento aprovado, você recebe um email com o link do caso para acompanhar o resultado.</p>
-          <p>Se sua conexão cair, você pode voltar a qualquer momento usando o link “Retomar caso”.</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="text-xs text-gray-600">
-            Nome do trabalhador
-            <input
-              value={workerName}
-              onChange={(event) => setWorkerName(event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-xs text-gray-600">
-            CPF
-            <input
-              value={formatCpf(workerCPF)}
-              onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-xs text-gray-600">
-            Email
-            <input
-              type="email"
-              value={workerEmail}
-              onChange={(event) => setWorkerEmail(event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-xs text-gray-600">
-            Empresa
-            <input
-              value={companyName}
-              onChange={(event) => setCompanyName(event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-xs text-gray-600">
-            CNPJ
-            <input
-              value={formatCnpj(companyCNPJ)}
-              onChange={(event) => setCompanyCNPJ(digitsOnly(event.target.value))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </label>
-        </div>
-
-        <div className="border-t pt-4">
-          <label className="text-xs text-gray-600">
-            Código do sindicato (opcional)
-            <div className="mt-1 flex gap-2">
-              <input
-                value={unionCode}
-                onChange={(event) => setUnionCode(event.target.value)}
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-              <Button
-                onClick={handleValidateCode}
-                disabled={loadingCode}
-                className="bg-gray-100 text-gray-800 hover:bg-gray-200"
-              >
-                {loadingCode ? "Validando..." : "Aplicar"}
-              </Button>
-            </div>
-          </label>
-          {normalizedCode && (
-            <p className="text-xs text-green-700 mt-2">Código aplicado: {normalizedCode}</p>
-          )}
-          {!normalizedCode && (
-            <p className="text-xs text-gray-500 mt-2">
-              Com código válido, o preço cai de {formatPrice(BASE_PRICE)} para {formatPrice(67.9)}.
-            </p>
-          )}
-        </div>
-
-        <div className="border-t pt-4">
-          <label className="text-xs text-gray-600">
-            PDF do PPP
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={(event) => setFile(event.target.files?.[0] || null)}
-              className="mt-2 text-sm"
-            />
-            <span className="mt-1 block text-[11px] text-gray-500">Tamanho máximo recomendado: {MAX_PDF_MB}MB.</span>
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between border-t pt-4">
+    <main className="min-h-screen bg-slate-50">
+      <section className="mx-auto max-w-6xl px-6 py-8 sm:py-10">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs text-gray-500">Preço final</p>
-            <p className="text-lg font-semibold text-gray-900">{formatPrice(price)}</p>
-            {normalizedCode && (
-              <div className="mt-1 text-xs text-gray-500">
-                <div>Preço padrão: {formatPrice(BASE_PRICE)}</div>
-                <div>Você economiza {formatPrice(BASE_PRICE - price)} com o código.</div>
-              </div>
+            <h1 className="text-3xl font-semibold text-slate-900">Análise do PPP</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Preencha os dados, envie o documento e siga para o pagamento.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/ppp">
+              <Button variant="outline">Voltar</Button>
+            </Link>
+            {lastCaseId && (
+              <Link href={`/ppp/${lastCaseId}`}>
+                <Button variant="outline">Retomar caso</Button>
+              </Link>
             )}
           </div>
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {submitting ? "Criando..." : "Continuar para pagamento"}
-          </Button>
+        </div>
+
+        <div className="mb-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
+          {[
+            { id: 1, title: "Dados" },
+            { id: 2, title: "Documento" },
+            { id: 3, title: "Preço" },
+            { id: 4, title: "Pagamento" },
+          ].map((step) => {
+            const isActive = currentStep === step.id;
+            const isDone = currentStep > step.id;
+            return (
+              <div
+                key={step.id}
+                className={`rounded-xl border px-3 py-2 text-sm ${
+                  isDone
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : isActive
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-slate-50 text-slate-500"
+                }`}
+              >
+                <p className="text-xs font-medium">Etapa {step.id}</p>
+                <p className="mt-1 font-semibold">{step.title}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-900">Dados do trabalhador e empresa</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="text-xs text-slate-600">
+                  Nome do trabalhador
+                  <input
+                    value={workerName}
+                    onChange={(event) => setWorkerName(event.target.value)}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-600">
+                  CPF
+                  <input
+                    value={formatCpf(workerCPF)}
+                    onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-600">
+                  Email para receber o link
+                  <input
+                    type="email"
+                    value={workerEmail}
+                    onChange={(event) => setWorkerEmail(event.target.value)}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-600">
+                  Empresa
+                  <input
+                    value={companyName}
+                    onChange={(event) => setCompanyName(event.target.value)}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-600 md:col-span-2">
+                  CNPJ
+                  <input
+                    value={formatCnpj(companyCNPJ)}
+                    onChange={(event) => setCompanyCNPJ(digitsOnly(event.target.value))}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-900">Documento</h2>
+              <p className="mt-1 text-sm text-slate-600">Envie o PDF do PPP para criar o caso.</p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                  className="text-sm"
+                />
+                {selectedFile && (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                    {selectedFile.name}
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">Tamanho recomendado: até {MAX_PDF_MB}MB.</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-900">Código do sindicato (opcional)</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Se você recebeu um código, aplique para liberar desconto.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <input
+                  value={unionCodeInput}
+                  onChange={(event) => setUnionCodeInput(event.target.value)}
+                  placeholder="Ex.: SINDICATO2026"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <Button
+                  onClick={handleApplyUnionCode}
+                  disabled={codeState === "validating"}
+                  className="bg-slate-900 text-white hover:bg-slate-950"
+                >
+                  {codeState === "validating" ? "Validando..." : "Aplicar"}
+                </Button>
+              </div>
+              {codeFeedback && (
+                <p
+                  className={`mt-2 text-xs ${
+                    codeState === "valid" ? "text-emerald-700" : "text-red-600"
+                  }`}
+                >
+                  {codeFeedback}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Resumo do preço</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>Preço padrão</span>
+                  <span>{formatPrice(BASE_PRICE)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Desconto</span>
+                  <span>{formatPrice(discountAmount)}</span>
+                </div>
+                <div className="h-px bg-slate-200" />
+                <div className="flex items-center justify-between font-semibold text-slate-900">
+                  <span>Preço final</span>
+                  <span>{formatPrice(finalPrice)}</span>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                O preço final é definido no backend e confirmado antes do pagamento.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Próxima ação</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Ao continuar, o caso será criado e o link de pagamento será gerado.
+              </p>
+              <Button
+                onClick={handleCreateCase}
+                disabled={!canSubmit}
+                className="mt-4 w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                {submitting ? "Criando e gerando pagamento..." : "Continuar para pagamento"}
+              </Button>
+              {caseId && (
+                <p className="mt-3 text-xs text-slate-600">
+                  Caso criado com sucesso.{" "}
+                  <Link className="text-blue-700 hover:underline" href={`/ppp/${caseId}`}>
+                    Abrir acompanhamento
+                  </Link>
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Se sua internet cair</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Você pode retomar o caso pelo código salvo automaticamente no navegador.
+              </p>
+            </div>
+          </aside>
         </div>
 
         {error && (
-          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
         {slowSubmit && !error && (
-          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-            O envio está levando mais tempo que o normal. Se sua conexão caiu, você pode tentar novamente ou usar “Retomar caso”.
+          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            O envio está demorando mais que o normal. Se houver queda de conexão, use o botão Retomar caso.
           </div>
         )}
-      </div>
-
-      {caseId && (
-        <div className="text-sm text-gray-600">
-          Caso criado. <Link className="text-blue-600 hover:underline" href={`/ppp/${caseId}`}>Acompanhar status</Link>
-        </div>
-      )}
-    </div>
+      </section>
+    </main>
   );
 }
-
-
-

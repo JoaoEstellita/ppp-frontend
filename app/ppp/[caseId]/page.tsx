@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   createPublicPayment,
@@ -18,9 +18,16 @@ const DISCOUNT_PRICE = 67.9;
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("pt-BR");
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString("pt-BR");
+}
+
+function formatPrice(value?: number | null) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number(value || 0));
 }
 
 function formatStatus(status?: string | null) {
@@ -28,18 +35,34 @@ function formatStatus(status?: string | null) {
     case "awaiting_payment":
       return "Aguardando pagamento";
     case "awaiting_pdf":
-      return "Aguardando PDF";
+      return "Aguardando documento";
     case "ready_to_process":
-      return "Pronto para processamento";
+      return "Pronto para processar";
     case "processing":
     case "paid_processing":
-      return "Processando";
+      return "Em processamento";
     case "done":
       return "Concluído";
     case "error":
-      return "Erro";
+      return "Ação necessária";
     default:
       return status || "-";
+  }
+}
+
+function getStatusTone(status?: string | null) {
+  switch (status) {
+    case "done":
+      return "bg-emerald-100 text-emerald-700";
+    case "error":
+      return "bg-red-100 text-red-700";
+    case "processing":
+    case "paid_processing":
+      return "bg-blue-100 text-blue-700";
+    case "awaiting_payment":
+      return "bg-amber-100 text-amber-700";
+    default:
+      return "bg-slate-100 text-slate-700";
   }
 }
 
@@ -55,80 +78,73 @@ function resolvePublicErrorMessage(code?: string | null, message?: string | null
     case "validation_failed":
       return "Falha de validação técnica. Reenvie o PDF com dados corretos.";
     case "conflict_detected":
-      return "Há divergências entre cadastro e documento. Revise e reenvie.";
+      return "Há divergências entre cadastro e documento. Revise os dados e reenvie.";
     default:
       return "Erro no processamento. Tente reenviar o PDF.";
   }
 }
 
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
-
-function formatPaymentStatus(status?: string | null) {
+function paymentStatusLabel(status?: string | null) {
   switch (status) {
     case "approved":
       return "Confirmado";
-    case "pending":
-      return "Pendente";
     case "in_process":
       return "Em processamento";
     case "rejected":
       return "Rejeitado";
+    case "pending":
+      return "Pendente";
+    case "created":
+      return "Criado";
     default:
-      return status || "pendente";
+      return status || "Pendente";
   }
 }
 
-function paymentBadgeClass(status?: string | null) {
-  switch (status) {
-    case "approved":
-      return "bg-green-100 text-green-700";
-    case "rejected":
-      return "bg-red-100 text-red-700";
-    case "in_process":
-      return "bg-yellow-100 text-yellow-700";
-    default:
-      return "bg-gray-100 text-gray-600";
-  }
-}
+type TimelineStep = {
+  id: string;
+  title: string;
+  done: boolean;
+  active: boolean;
+};
 
 export default function PublicCaseStatusPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const caseId = params?.caseId as string | undefined;
 
-  const [caseDetail, setCaseDetail] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reuploading, setReuploading] = useState(false);
-  const [reuploadError, setReuploadError] = useState<string | null>(null);
+  const [caseDetail, setCaseDetail] = useState<any | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [creatingPayment, setCreatingPayment] = useState(false);
   const [downloadingInput, setDownloadingInput] = useState(false);
   const [downloadInputError, setDownloadInputError] = useState<string | null>(null);
   const [downloadingResult, setDownloadingResult] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadResultError, setDownloadResultError] = useState<string | null>(null);
+  const [reuploading, setReuploading] = useState(false);
+  const [reuploadError, setReuploadError] = useState<string | null>(null);
 
   const fetchCase = useCallback(async () => {
     if (!caseId) return;
     try {
       setLoading(true);
       setError(null);
-      const data = await getPublicCase(caseId);
-      setCaseDetail(data);
-      setPaymentUrl(data?.payment?.payment_url ?? null);
+      const response = await getPublicCase(caseId);
+      setCaseDetail(response);
+      setPaymentUrl(response?.payment?.payment_url ?? null);
       if (typeof window !== "undefined") {
         window.localStorage.setItem("ppp:last_case_id", caseId);
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || "Não foi possível carregar o caso.");
+        const detailsMessage =
+          typeof err.details === "object" && err.details !== null
+            ? (err.details as any).message || (err.details as any).error
+            : null;
+        setError(detailsMessage || err.message || "Erro ao buscar caso");
       } else {
-        setError("Não foi possível carregar o caso.");
+        setError("Erro ao buscar caso");
       }
     } finally {
       setLoading(false);
@@ -146,47 +162,59 @@ export default function PublicCaseStatusPage() {
     return () => clearInterval(timer);
   }, [caseDetail?.case?.status, fetchCase]);
 
+  const status = caseDetail?.case?.status as string | undefined;
+  const payment = caseDetail?.payment || null;
   const lastErrorCode = caseDetail?.case?.last_error_code ?? null;
   const lastErrorMessage = caseDetail?.case?.last_error_message ?? null;
   const lastErrorStep = caseDetail?.case?.last_error_step ?? null;
+  const unionCodeApplied = caseDetail?.case?.union_code_applied ?? null;
+  const worker = caseDetail?.case?.worker ?? {};
+  const company = caseDetail?.case?.company ?? {};
 
-  const showErrorBanner =
-    caseDetail?.case?.status === "error" ||
-    !!lastErrorCode ||
-    !!lastErrorMessage;
+  const documents = useMemo(() => caseDetail?.case?.documents ?? [], [caseDetail?.case?.documents]);
+  const inputDoc = useMemo(
+    () =>
+      documents.find(
+        (doc: any) => doc.document_type === "ppp_input" || doc.type === "ppp_input"
+      ) || null,
+    [documents]
+  );
+  const resultDoc = useMemo(
+    () =>
+      documents.find(
+        (doc: any) => doc.document_type === "ppp_result" || doc.type === "ppp_result"
+      ) ||
+      documents.find(
+        (doc: any) => doc.document_type === "ppp_output" || doc.type === "ppp_output"
+      ) ||
+      null,
+    [documents]
+  );
 
-  const handleReupload = async (file: File) => {
-    if (!caseId) return;
-    setReuploading(true);
-    setReuploadError(null);
-    try {
-      await reuploadPublicPpp(caseId, file);
-      await fetchCase();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.status === 413) {
-          setReuploadError("Arquivo muito grande. Envie um PDF menor.");
-        } else {
-          setReuploadError(err.message || "Não foi possível reenviar o PDF.");
-        }
-      } else {
-        setReuploadError("Não foi possível reenviar o PDF.");
-      }
-    } finally {
-      setReuploading(false);
-    }
-  };
+  const timeline = useMemo<TimelineStep[]>(() => {
+    const paymentDone = payment?.status === "approved";
+    const processing = status === "processing" || status === "paid_processing";
+    const done = status === "done";
+    const errorStatus = status === "error";
+    return [
+      { id: "case", title: "Caso criado", done: true, active: !paymentDone },
+      { id: "payment", title: "Pagamento", done: paymentDone, active: !paymentDone && status === "awaiting_payment" },
+      { id: "processing", title: "Processamento", done: done, active: processing || errorStatus },
+      { id: "result", title: "Resultado", done: done && Boolean(resultDoc), active: done && Boolean(resultDoc) },
+    ];
+  }, [payment?.status, resultDoc, status]);
 
-  const handlePayment = async () => {
+  async function handleGeneratePayment() {
     if (!caseId) return;
     setCreatingPayment(true);
     setError(null);
     try {
-      const payment = await createPublicPayment(caseId);
-      if (payment?.payment_url) {
-        window.location.href = payment.payment_url;
+      const response = await createPublicPayment(caseId);
+      if (response?.payment_url) {
+        window.location.href = response.payment_url;
         return;
       }
+      setError("Pagamento criado, mas o link não foi retornado.");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {
@@ -196,255 +224,304 @@ export default function PublicCaseStatusPage() {
             typeof err.details === "object" && err.details !== null
               ? (err.details as any).message || (err.details as any).error
               : null;
-          setError(
-            detailsMessage ||
-              err.message ||
-              "Não foi possível gerar o link de pagamento."
-          );
+          setError(detailsMessage || err.message || "Erro ao gerar link de pagamento");
         }
       } else {
-        setError("Não foi possível gerar o link de pagamento.");
+        setError("Erro ao gerar link de pagamento");
       }
     } finally {
       setCreatingPayment(false);
     }
-  };
+  }
 
-  const statusLabel = useMemo(
-    () => formatStatus(caseDetail?.case?.status),
-    [caseDetail?.case?.status]
-  );
-  const paymentStatus = caseDetail?.payment?.status || null;
-  const unionCodeApplied = caseDetail?.case?.union_code_applied ?? null;
-  const resultDoc = useMemo(() => {
-    const docs = caseDetail?.case?.documents ?? [];
-    return (
-      docs.find((doc: any) => doc.document_type === "ppp_result" || doc.type === "ppp_result") ||
-      docs.find((doc: any) => doc.document_type === "ppp_output" || doc.type === "ppp_output") ||
-      null
-    );
-  }, [caseDetail?.case?.documents]);
-  const inputDoc = useMemo(() => {
-    const docs = caseDetail?.case?.documents ?? [];
-    return docs.find((doc: any) => doc.document_type === "ppp_input" || doc.type === "ppp_input") || null;
-  }, [caseDetail?.case?.documents]);
-
-  const handleDownloadInput = async () => {
+  async function handleDownloadInput() {
     if (!caseId) return;
     setDownloadingInput(true);
     setDownloadInputError(null);
     try {
-      const data = await getPublicInputDownload(caseId);
-      if (data?.signedUrl) {
-        window.location.href = data.signedUrl;
-        return;
+      const response = await getPublicInputDownload(caseId);
+      if (response?.signedUrl) {
+        window.location.href = response.signedUrl;
+      } else {
+        setDownloadInputError("Documento de entrada indisponível no momento.");
       }
-      setDownloadInputError("Documento enviado indisponível no momento.");
     } catch (err) {
       if (err instanceof ApiError) {
-        setDownloadInputError(err.message || "Não foi possível gerar o download do documento enviado.");
+        setDownloadInputError(err.message || "Erro ao gerar download do documento enviado.");
       } else {
-        setDownloadInputError("Não foi possível gerar o download do documento enviado.");
+        setDownloadInputError("Erro ao gerar download do documento enviado.");
       }
     } finally {
       setDownloadingInput(false);
     }
-  };
+  }
 
-  const handleDownloadResult = async () => {
+  async function handleDownloadResult() {
     if (!caseId) return;
     setDownloadingResult(true);
-    setDownloadError(null);
+    setDownloadResultError(null);
     try {
-      const data = await getPublicResultDownload(caseId);
-      if (data?.signedUrl) {
-        window.location.href = data.signedUrl;
-        return;
+      const response = await getPublicResultDownload(caseId);
+      if (response?.signedUrl) {
+        window.location.href = response.signedUrl;
+      } else {
+        setDownloadResultError("Resultado indisponível no momento.");
       }
-      setDownloadError("Resultado indisponível no momento.");
     } catch (err) {
       if (err instanceof ApiError) {
-        setDownloadError(err.message || "Não foi possível gerar o download.");
+        setDownloadResultError(err.message || "Erro ao gerar download do resultado.");
       } else {
-        setDownloadError("Não foi possível gerar o download.");
+        setDownloadResultError("Erro ao gerar download do resultado.");
       }
     } finally {
       setDownloadingResult(false);
     }
-  };
+  }
+
+  async function handleReupload(file: File) {
+    if (!caseId) return;
+    setReuploading(true);
+    setReuploadError(null);
+    try {
+      await reuploadPublicPpp(caseId, file);
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 413) {
+          setReuploadError("Arquivo muito grande. Reenvie um PDF menor.");
+        } else {
+          setReuploadError(err.message || "Erro ao reenviar PDF.");
+        }
+      } else {
+        setReuploadError("Erro ao reenviar PDF.");
+      }
+    } finally {
+      setReuploading(false);
+    }
+  }
 
   if (loading) {
-    return <div className="px-6 py-10 text-sm text-gray-600">Carregando caso...</div>;
+    return <div className="px-6 py-10 text-sm text-slate-600">Carregando caso...</div>;
   }
 
   if (error) {
     return (
-      <div className="px-6 py-10 space-y-4">
-        <p className="text-sm text-red-600">{error}</p>
-        <Link className="text-sm text-blue-600 hover:underline" href="/ppp/novo">
-          Criar novo caso
-        </Link>
-      </div>
+      <main className="mx-auto max-w-4xl px-6 py-10">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <div className="mt-4 flex gap-3">
+          <Link href="/ppp/novo" className="text-sm font-medium text-blue-700 hover:underline">
+            Criar novo caso
+          </Link>
+          <Link href="/ppp" className="text-sm font-medium text-slate-700 hover:underline">
+            Voltar para início
+          </Link>
+        </div>
+      </main>
     );
   }
 
   if (!caseDetail?.case) {
-    return <div className="px-6 py-10 text-sm text-gray-600">Caso não encontrado.</div>;
+    return (
+      <main className="mx-auto max-w-4xl px-6 py-10">
+        <p className="text-sm text-slate-600">Caso não encontrado.</p>
+      </main>
+    );
   }
 
+  const showErrorBanner = status === "error" || Boolean(lastErrorCode) || Boolean(lastErrorMessage);
+
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Caso {caseDetail.case.id}</h1>
-          <p className="text-xs text-gray-500">Criado em {formatDate(caseDetail.case.created_at)}</p>
+    <main className="min-h-screen bg-slate-50">
+      <section className="mx-auto max-w-6xl px-6 py-8 sm:py-10">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-900">Caso {caseDetail.case.id}</h1>
+            <p className="mt-1 text-sm text-slate-600">Criado em {formatDate(caseDetail.case.created_at)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusTone(status)}`}>
+              {formatStatus(status)}
+            </span>
+            <Link href="/ppp/novo">
+              <Button variant="outline">Novo caso</Button>
+            </Link>
+          </div>
         </div>
-        <Link className="text-sm text-blue-600 hover:underline" href="/ppp/novo">
-          Criar novo caso
-        </Link>
-      </div>
 
-      {showErrorBanner && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
-          <h3 className="text-sm font-semibold text-red-800">Erro no processamento</h3>
-          <p className="text-xs text-red-700">
-            {resolvePublicErrorMessage(lastErrorCode, lastErrorMessage)}
-          </p>
-          {lastErrorStep && (
-            <p className="text-xs text-red-600">Etapa: {lastErrorStep}</p>
-          )}
-        </div>
-      )}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="bg-white rounded-lg shadow p-4 space-y-2">
-          <h3 className="text-sm font-semibold text-gray-700">Trabalhador</h3>
-          <p className="text-sm text-gray-800">{caseDetail.case.worker?.name || "-"}</p>
-          <p className="text-xs text-gray-500">CPF: {caseDetail.case.worker?.cpf || "-"}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4 space-y-2">
-          <h3 className="text-sm font-semibold text-gray-700">Empresa</h3>
-          <p className="text-sm text-gray-800">{caseDetail.case.company?.name || "-"}</p>
-          <p className="text-xs text-gray-500">CNPJ: {caseDetail.case.company?.cnpj || "-"}</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="text-sm font-semibold text-gray-700">Status do caso</h3>
-        <p className="text-sm text-gray-800">{statusLabel}</p>
-        <p className="text-xs text-gray-500">Atualizado em {formatDate(caseDetail.case.updated_at)}</p>
-        {unionCodeApplied && (
-          <p className="text-xs text-gray-500">Código do sindicato aplicado: {unionCodeApplied}</p>
-        )}
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">Pagamento</h3>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>Status:</span>
-          <span className={`rounded-full px-2 py-1 ${paymentBadgeClass(paymentStatus)}`}>
-            {formatPaymentStatus(paymentStatus)}
-          </span>
-        </div>
-        {unionCodeApplied && (
-          <div className="text-xs text-gray-500">
-            <div>Preço padrão: {formatPrice(BASE_PRICE)}</div>
-            <div>Preço com desconto: {formatPrice(DISCOUNT_PRICE)}</div>
+        {showErrorBanner && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p className="font-semibold">Último problema</p>
+            <p className="mt-1">{resolvePublicErrorMessage(lastErrorCode, lastErrorMessage)}</p>
+            {lastErrorStep && <p className="mt-1 text-xs">Etapa: {lastErrorStep}</p>}
           </div>
         )}
-        {paymentUrl ? (
-          <a
-            href={paymentUrl}
-            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-          >
-            Pagar agora
-          </a>
-        ) : (
-          <Button
-            onClick={handlePayment}
-            disabled={creatingPayment}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {creatingPayment ? "Gerando..." : "Gerar link de pagamento"}
-          </Button>
-        )}
-      </div>
 
-      <div className="bg-white rounded-lg shadow p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">Documento enviado</h3>
-        {inputDoc ? (
-          <>
-            <p className="text-xs text-gray-500">
-              {inputDoc?.fileName ? `Arquivo: ${inputDoc.fileName}` : "Arquivo do PPP enviado."}
-            </p>
-            <Button
-              onClick={handleDownloadInput}
-              disabled={downloadingInput}
-              className="bg-slate-700 hover:bg-slate-800 text-white"
-            >
-              {downloadingInput ? "Gerando..." : "Baixar documento enviado"}
-            </Button>
-          </>
-        ) : (
-          <p className="text-xs text-gray-500">Nenhum documento de entrada encontrado.</p>
-        )}
-        {downloadInputError && <p className="text-xs text-red-600">{downloadInputError}</p>}
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">Resultado</h3>
-        {resultDoc ? (
-          <>
-            <p className="text-xs text-gray-500">
-              Documento pronto para download.
-              {resultDoc?.original_name ? ` Arquivo: ${resultDoc.original_name}` : ""}
-            </p>
-            <Button
-              onClick={handleDownloadResult}
-              disabled={downloadingResult}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {downloadingResult ? "Gerando..." : "Baixar resultado"}
-            </Button>
-          </>
-        ) : (
-          <p className="text-xs text-gray-500">Resultado ainda não disponível.</p>
-        )}
-        {downloadError && <p className="text-xs text-red-600">{downloadError}</p>}
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">Reenviar PPP</h3>
-        <p className="text-xs text-gray-500">
-          Use esta opção em caso de erro de leitura ou atualização do documento.
-        </p>
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={(event) => {
-            const selected = event.target.files?.[0];
-            if (selected) {
-              handleReupload(selected);
-            }
-          }}
-          disabled={reuploading}
-          className="text-sm"
-        />
-        {reuploadError && (
-          <p className="text-xs text-red-600">{reuploadError}</p>
-        )}
-      </div>
-
-      {searchParams?.get("payment") === "success" && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
-          Pagamento confirmado. O processamento foi iniciado.
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-slate-900">Andamento</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            {timeline.map((step) => (
+              <div
+                key={step.id}
+                className={`rounded-xl border px-3 py-2 text-sm ${
+                  step.done
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : step.active
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-slate-50 text-slate-500"
+                }`}
+              >
+                {step.title}
+              </div>
+            ))}
+          </div>
         </div>
-      )}
-      {searchParams?.get("payment") === "failure" && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
-          Pagamento não concluído. Tente novamente.
+
+        <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Dados informados</h3>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Trabalhador</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900">{worker?.name || "-"}</p>
+                  <p className="mt-1 text-xs text-slate-600">CPF: {worker?.cpf || "-"}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Empresa</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900">{company?.name || "-"}</p>
+                  <p className="mt-1 text-xs text-slate-600">CNPJ: {company?.cnpj || "-"}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">Atualizado em {formatDate(caseDetail.case.updated_at)}</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Documento enviado</h3>
+              {inputDoc ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-700">{inputDoc.fileName || "Arquivo do PPP enviado"}</p>
+                  <p className="mt-1 text-xs text-slate-500">Enviado em {formatDate(inputDoc.created_at)}</p>
+                  <Button
+                    onClick={handleDownloadInput}
+                    disabled={downloadingInput}
+                    className="mt-3 bg-slate-800 text-white hover:bg-slate-900"
+                  >
+                    {downloadingInput ? "Gerando..." : "Baixar documento enviado"}
+                  </Button>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">Documento ainda não localizado.</p>
+              )}
+              {downloadInputError && <p className="mt-2 text-xs text-red-600">{downloadInputError}</p>}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Resultado</h3>
+              {resultDoc ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {resultDoc.fileName || "Resultado disponível para download"}
+                  </p>
+                  <Button
+                    onClick={handleDownloadResult}
+                    disabled={downloadingResult}
+                    className="mt-3 bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    {downloadingResult ? "Gerando..." : "Baixar resultado"}
+                  </Button>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">Resultado ainda não disponível.</p>
+              )}
+              {downloadResultError && <p className="mt-2 text-xs text-red-600">{downloadResultError}</p>}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Reenviar PDF</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Use esta ação quando houver falha de leitura ou solicitação de atualização.
+              </p>
+              <input
+                type="file"
+                accept="application/pdf"
+                disabled={reuploading}
+                className="mt-3 text-sm"
+                onChange={(event) => {
+                  const selected = event.target.files?.[0];
+                  if (selected) {
+                    handleReupload(selected);
+                  }
+                }}
+              />
+              {reuploadError && <p className="mt-2 text-xs text-red-600">{reuploadError}</p>}
+            </div>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Pagamento</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>Status</span>
+                  <span className="font-medium text-slate-900">{paymentStatusLabel(payment?.status)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Valor</span>
+                  <span className="font-medium text-slate-900">{formatPrice(payment?.amount || BASE_PRICE)}</span>
+                </div>
+                {unionCodeApplied && (
+                  <div className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
+                    <p>Código aplicado: {unionCodeApplied}</p>
+                    <p>Preço padrão: {formatPrice(BASE_PRICE)}</p>
+                    <p>Preço com desconto: {formatPrice(DISCOUNT_PRICE)}</p>
+                  </div>
+                )}
+              </div>
+
+              {paymentUrl ? (
+                <a
+                  href={paymentUrl}
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                >
+                  Pagar agora
+                </a>
+              ) : (
+                <Button
+                  onClick={handleGeneratePayment}
+                  disabled={creatingPayment}
+                  className="mt-4 w-full bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {creatingPayment ? "Gerando..." : "Gerar link de pagamento"}
+                </Button>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Recuperação</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Se sua internet cair, você pode voltar usando este mesmo link do caso.
+              </p>
+              <p className="mt-2 break-all text-xs text-slate-500">{caseDetail.case.id}</p>
+            </div>
+
+            {searchParams?.get("payment") === "success" && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+                Pagamento confirmado. O processamento foi iniciado.
+              </div>
+            )}
+            {searchParams?.get("payment") === "failure" && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                Pagamento não concluído. Gere um novo link e tente novamente.
+              </div>
+            )}
+            {searchParams?.get("payment") === "pending" && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                Pagamento pendente. Aguarde a confirmação ou tente novamente mais tarde.
+              </div>
+            )}
+          </aside>
         </div>
-      )}
-    </div>
+      </section>
+    </main>
   );
 }
