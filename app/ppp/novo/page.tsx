@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   createPublicCase,
@@ -53,6 +53,7 @@ function isValidEmail(value: string) {
 type CodeState = "idle" | "validating" | "valid" | "invalid";
 
 export default function PublicCaseNewPage() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [workerName, setWorkerName] = useState("");
   const [workerCPF, setWorkerCPF] = useState("");
   const [workerEmail, setWorkerEmail] = useState("");
@@ -340,16 +341,23 @@ export default function PublicCaseNewPage() {
               <p className="mt-1 text-sm text-slate-600">Envie o PDF do PPP para criar o caso.</p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept="application/pdf"
                   onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-                  className="text-sm"
+                  className="hidden"
                 />
-                {selectedFile && (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
-                    {selectedFile.name}
-                  </span>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-slate-300 text-slate-700 hover:bg-slate-100"
+                >
+                  Escolher arquivo
+                </Button>
+                <span className="text-sm text-slate-600">
+                  {selectedFile ? selectedFile.name : "Nenhum arquivo escolhido"}
+                </span>
               </div>
               <p className="mt-2 text-xs text-slate-500">Tamanho recomendado: até {MAX_PDF_MB}MB.</p>
             </div>
