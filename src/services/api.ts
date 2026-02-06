@@ -1605,4 +1605,13 @@ export async function getPublicResultDownload(caseId: string): Promise<{
   return handleJsonResponse(res);
 }
 
+export async function getPublicInputDownload(caseId: string): Promise<{
+  signedUrl: string;
+  fileName?: string | null;
+  expiresIn?: number;
+}> {
+  const res = await apiFetch(`/public/cases/${caseId}/input/download`);
+  return handleJsonResponse(res);
+}
+
 

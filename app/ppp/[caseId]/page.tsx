@@ -7,6 +7,7 @@ import {
   ApiError,
   createPublicPayment,
   getPublicCase,
+  getPublicInputDownload,
   getPublicResultDownload,
   reuploadPublicPpp,
 } from "@/src/services/api";
@@ -107,6 +108,8 @@ export default function PublicCaseStatusPage() {
   const [reuploadError, setReuploadError] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [creatingPayment, setCreatingPayment] = useState(false);
+  const [downloadingInput, setDownloadingInput] = useState(false);
+  const [downloadInputError, setDownloadInputError] = useState<string | null>(null);
   const [downloadingResult, setDownloadingResult] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -189,7 +192,15 @@ export default function PublicCaseStatusPage() {
         if (err.status === 409) {
           setError("Pagamento já iniciado para este caso.");
         } else {
-          setError(err.message || "Não foi possível gerar o link de pagamento.");
+          const detailsMessage =
+            typeof err.details === "object" && err.details !== null
+              ? (err.details as any).message || (err.details as any).error
+              : null;
+          setError(
+            detailsMessage ||
+              err.message ||
+              "Não foi possível gerar o link de pagamento."
+          );
         }
       } else {
         setError("Não foi possível gerar o link de pagamento.");
@@ -213,6 +224,32 @@ export default function PublicCaseStatusPage() {
       null
     );
   }, [caseDetail?.case?.documents]);
+  const inputDoc = useMemo(() => {
+    const docs = caseDetail?.case?.documents ?? [];
+    return docs.find((doc: any) => doc.document_type === "ppp_input" || doc.type === "ppp_input") || null;
+  }, [caseDetail?.case?.documents]);
+
+  const handleDownloadInput = async () => {
+    if (!caseId) return;
+    setDownloadingInput(true);
+    setDownloadInputError(null);
+    try {
+      const data = await getPublicInputDownload(caseId);
+      if (data?.signedUrl) {
+        window.location.href = data.signedUrl;
+        return;
+      }
+      setDownloadInputError("Documento enviado indisponível no momento.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setDownloadInputError(err.message || "Não foi possível gerar o download do documento enviado.");
+      } else {
+        setDownloadInputError("Não foi possível gerar o download do documento enviado.");
+      }
+    } finally {
+      setDownloadingInput(false);
+    }
+  };
 
   const handleDownloadResult = async () => {
     if (!caseId) return;
@@ -331,6 +368,27 @@ export default function PublicCaseStatusPage() {
             {creatingPayment ? "Gerando..." : "Gerar link de pagamento"}
           </Button>
         )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Documento enviado</h3>
+        {inputDoc ? (
+          <>
+            <p className="text-xs text-gray-500">
+              {inputDoc?.fileName ? `Arquivo: ${inputDoc.fileName}` : "Arquivo do PPP enviado."}
+            </p>
+            <Button
+              onClick={handleDownloadInput}
+              disabled={downloadingInput}
+              className="bg-slate-700 hover:bg-slate-800 text-white"
+            >
+              {downloadingInput ? "Gerando..." : "Baixar documento enviado"}
+            </Button>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">Nenhum documento de entrada encontrado.</p>
+        )}
+        {downloadInputError && <p className="text-xs text-red-600">{downloadInputError}</p>}
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
