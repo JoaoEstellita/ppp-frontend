@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   createPublicCase,
@@ -105,21 +105,6 @@ export default function PublicCaseNewPage() {
       setCodeFeedback("Código alterado. Clique em Aplicar para validar novamente.");
     }
   }, [unionCodeInput, normalizedCode]);
-
-  const canSubmit = useMemo(() => {
-    if (submitting) return false;
-    const cpf = digitsOnly(workerCPF);
-    const cnpj = digitsOnly(companyCNPJ);
-    return (
-      workerName.trim().length > 0 &&
-      cpf.length === 11 &&
-      workerEmail.trim().length > 0 &&
-      isValidEmail(workerEmail) &&
-      companyName.trim().length > 0 &&
-      cnpj.length === 14 &&
-      Boolean(selectedFile)
-    );
-  }, [workerName, workerCPF, workerEmail, companyName, companyCNPJ, selectedFile, submitting]);
 
   async function handleApplyUnionCode() {
     const rawCode = unionCodeInput.trim();
@@ -413,7 +398,7 @@ export default function PublicCaseNewPage() {
                 </div>
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                O preço final é definido no backend e confirmado antes do pagamento.
+                Sem codigo: R$ 87,90. Com codigo valido do sindicato: R$ 67,90.
               </p>
             </div>
 
@@ -424,7 +409,7 @@ export default function PublicCaseNewPage() {
               </p>
               <Button
                 onClick={handleCreateCase}
-                disabled={!canSubmit}
+                disabled={submitting}
                 className="mt-4 w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
               >
                 {submitting ? "Criando e gerando pagamento..." : "Continuar para pagamento"}
