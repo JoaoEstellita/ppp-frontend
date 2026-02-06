@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -45,6 +45,8 @@ function isValidEmail(value: string) {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
 }
 
+const MAX_PDF_MB = 5;
+
 export default function PublicCaseNewPage() {
   const [workerName, setWorkerName] = useState("");
   const [workerCPF, setWorkerCPF] = useState("");
@@ -60,6 +62,7 @@ export default function PublicCaseNewPage() {
   const [error, setError] = useState<string | null>(null);
   const [caseId, setCaseId] = useState<string | null>(null);
   const [lastCaseId, setLastCaseId] = useState<string | null>(null);
+  const [slowSubmit, setSlowSubmit] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -108,6 +111,10 @@ export default function PublicCaseNewPage() {
       setError("Preencha todos os campos e anexe o PDF.");
       return;
     }
+    if (file && file.size > MAX_PDF_MB * 1024 * 1024) {
+      setError(`Arquivo muito grande. Envie um PDF com até ${MAX_PDF_MB}MB.`);
+      return;
+    }
     if (!isValidEmail(workerEmail)) {
       setError("Email inválido. Informe um email válido.");
       return;
@@ -123,6 +130,8 @@ export default function PublicCaseNewPage() {
 
     setSubmitting(true);
     setError(null);
+    setSlowSubmit(false);
+    const slowTimer = window.setTimeout(() => setSlowSubmit(true), 20000);
     try {
       const created = await createPublicCase({
         workerName,
@@ -163,6 +172,7 @@ export default function PublicCaseNewPage() {
         setError("Não foi possível criar o caso.");
       }
     } finally {
+      window.clearTimeout(slowTimer);
       setSubmitting(false);
     }
   };
@@ -179,6 +189,10 @@ export default function PublicCaseNewPage() {
             Você já iniciou um caso. <Link className="text-blue-600 hover:underline" href={`/ppp/${lastCaseId}`}>Retomar caso</Link>
           </p>
         )}
+        <div className="text-xs text-gray-500 space-y-1">
+          <p>Após o pagamento aprovado, você recebe um email com o link do caso para acompanhar o resultado.</p>
+          <p>Se sua conexão cair, você pode voltar a qualquer momento usando o link “Retomar caso”.</p>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
@@ -247,6 +261,11 @@ export default function PublicCaseNewPage() {
           {normalizedCode && (
             <p className="text-xs text-green-700 mt-2">Código aplicado: {normalizedCode}</p>
           )}
+          {!normalizedCode && (
+            <p className="text-xs text-gray-500 mt-2">
+              Com código válido, o preço cai de {formatPrice(BASE_PRICE)} para {formatPrice(67.9)}.
+            </p>
+          )}
         </div>
 
         <div className="border-t pt-4">
@@ -258,6 +277,7 @@ export default function PublicCaseNewPage() {
               onChange={(event) => setFile(event.target.files?.[0] || null)}
               className="mt-2 text-sm"
             />
+            <span className="mt-1 block text-[11px] text-gray-500">Tamanho máximo recomendado: {MAX_PDF_MB}MB.</span>
           </label>
         </div>
 
@@ -286,6 +306,11 @@ export default function PublicCaseNewPage() {
             {error}
           </div>
         )}
+        {slowSubmit && !error && (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            O envio está levando mais tempo que o normal. Se sua conexão caiu, você pode tentar novamente ou usar “Retomar caso”.
+          </div>
+        )}
       </div>
 
       {caseId && (
@@ -296,3 +321,6 @@ export default function PublicCaseNewPage() {
     </div>
   );
 }
+
+
+
