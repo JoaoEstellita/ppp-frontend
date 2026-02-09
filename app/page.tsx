@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
@@ -27,10 +27,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="text-xl font-bold">PPP Auditor</div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => router.push("/ppp")}
-              >Acesso trabalhador</Button
-            >
-            <Button onClick={() => router.push("/login")}>Acesso sindicato</Button>
+            <Button onClick={() => router.push("/ppp")} className="bg-blue-700 hover:bg-blue-800 text-white">
+              Validar meu PPP
+            </Button>
+            <Button onClick={() => router.push("/login")} className="bg-slate-900 hover:bg-slate-800 text-white">
+              Entrar como sindicato
+            </Button>
           </div>
         </div>
       </header>
@@ -41,25 +43,30 @@ export default function LandingPage() {
             <div className="space-y-6">
               <p className="text-sm uppercase tracking-wide text-blue-100">Plataforma de auditoria</p>
               <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight">
-                Auditoria técnica de PPP em minutos, não em dias.
+                Auditoria tecnica de PPP em minutos, nao em dias.
               </h1>
               <p className="text-lg text-blue-100">
                 Ferramenta para advogados, peritos, empresas e trabalhadores conferirem PPP com base na
-                IN 128/2022 e nas NRs, gerando parecer técnico pronto para conferência humana.
+                IN 128/2022 e nas NRs, gerando parecer tecnico pronto para conferencia humana.
                 Ideal para quem precisa de atestado profissional do PPP.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button onClick={() => router.push("/ppp/novo")}>Começar como trabalhador</Button>
-                <Button variant="outline" onClick={() => router.push("/login")}>
+                <Button onClick={() => router.push("/ppp/novo")} className="bg-blue-700 hover:bg-blue-800 text-white">
+                  Validar meu PPP
+                </Button>
+                <Button onClick={() => router.push("/login")} className="bg-slate-900 hover:bg-slate-800 text-white">
                   Entrar como sindicato
                 </Button>
-                <Button variant="outline" onClick={() => scrollTo("como-funciona")}>
+                <Button onClick={() => scrollTo("como-funciona")} className="bg-blue-900 hover:bg-blue-950 text-white">
                   Ver como funciona
                 </Button>
               </div>
               {user && (
                 <div className="text-xs text-blue-100">
-                  Você já está logado. <button className="underline" onClick={() => router.push(dashboardHref)}>Ir para o painel</button>
+                  Voce ja esta logado.{" "}
+                  <button className="underline" onClick={() => router.push(dashboardHref)}>
+                    Ir para o painel
+                  </button>
                 </div>
               )}
             </div>
@@ -69,7 +76,7 @@ export default function LandingPage() {
         <section id="como-funciona" className="max-w-6xl mx-auto px-6 py-14 space-y-8">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-bold">Como funciona</h2>
-            <p className="text-gray-600">Três passos simples para obter um parecer técnico estruturado.</p>
+            <p className="text-gray-600">Tres passos simples para obter um parecer tecnico estruturado.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
@@ -82,8 +89,8 @@ export default function LandingPage() {
                 text: "Aplicamos o protocolo baseado na IN 128/2022 e NRs.",
               },
               {
-                title: "3) Parecer técnico",
-                text: "Você recebe um parecer estruturado para revisão humana.",
+                title: "3) Parecer tecnico",
+                text: "Voce recebe um parecer estruturado para revisao humana.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-lg shadow p-6 space-y-3">
@@ -97,16 +104,16 @@ export default function LandingPage() {
         <section className="bg-white border-t border-b py-14">
           <div className="max-w-6xl mx-auto px-6 space-y-6">
             <div className="text-center space-y-3">
-              <h2 className="text-3xl font-bold">Para quem é</h2>
+              <h2 className="text-3xl font-bold">Para quem e</h2>
               <p className="text-gray-600">
-                A plataforma ajuda equipes técnicas, jurídicas e trabalhadores que precisam de atestado profissional do PPP.
+                A plataforma ajuda equipes tecnicas, juridicas e trabalhadores que precisam de atestado profissional do PPP.
               </p>
             </div>
             <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 "Trabalhadores",
-                "Advogados previdenciários",
-                "Escritórios de contabilidade",
+                "Advogados previdenciarios",
+                "Escritorios de contabilidade",
                 "Departamentos de RH/SSO",
                 "Peritos e consultores",
               ].map((label) => (
@@ -120,24 +127,26 @@ export default function LandingPage() {
 
         <section className="max-w-6xl mx-auto px-6 py-14 grid lg:grid-cols-2 gap-10 items-center">
           <div className="space-y-3">
-            <h2 className="text-3xl font-bold">Benefícios</h2>
+            <h2 className="text-3xl font-bold">Beneficios</h2>
             <ul className="space-y-2 text-gray-700 list-disc list-inside">
               <li>Reduz o tempo de auditoria de PPP.</li>
-              <li>Padroniza pareceres técnicos.</li>
-              <li>Identifica PPP inválido antes do requerimento ou ação.</li>
-              <li>Gera documentação técnica mais robusta.</li>
+              <li>Padroniza pareceres tecnicos.</li>
+              <li>Identifica PPP invalido antes do requerimento ou acao.</li>
+              <li>Gera documentacao tecnica mais robusta.</li>
               <li>Ajuda trabalhadores a verificar a validade do PPP para atestado profissional.</li>
             </ul>
           </div>
           <div className="bg-white shadow rounded-lg p-6 space-y-4">
             <h3 className="text-xl font-semibold">Pronto para usar</h3>
             <p className="text-gray-600">
-              Escolha o acesso ideal para você e acompanhe os PPPs gerados por caso com pagamento confirmado.
+              Escolha o acesso ideal para voce e acompanhe os PPPs gerados por caso com pagamento confirmado.
             </p>
             <div className="flex gap-3">
-              <Button onClick={() => router.push("/ppp/novo")}>Sou trabalhador</Button>
-              <Button variant="outline" onClick={() => router.push("/login")}>
-                Sou sindicato
+              <Button onClick={() => router.push("/ppp/novo")} className="bg-blue-700 hover:bg-blue-800 text-white">
+                Validar meu PPP
+              </Button>
+              <Button onClick={() => router.push("/login")} className="bg-slate-900 hover:bg-slate-800 text-white">
+                Entrar como sindicato
               </Button>
             </div>
           </div>
@@ -146,13 +155,13 @@ export default function LandingPage() {
 
       <footer className="border-t bg-white">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-wrap justify-between text-sm text-gray-600">
-          <span>PPP Auditor · Parecer técnico simplificado</span>
+          <span>PPP Auditor - Parecer tecnico simplificado</span>
           <div className="flex gap-4">
             <button onClick={() => router.push("/ppp")} className="hover:text-gray-900">
-              Acesso trabalhador
+              Validar meu PPP
             </button>
             <button onClick={() => router.push("/login")} className="hover:text-gray-900">
-              Acesso sindicato
+              Entrar como sindicato
             </button>
           </div>
         </div>
@@ -160,3 +169,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
+
