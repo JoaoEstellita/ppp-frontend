@@ -141,28 +141,46 @@ export default function PublicCaseNewPage() {
         } else if (err.status === 429) {
           setCodeFeedback("Muitas tentativas. Aguarde um minuto.");
         } else {
-          setCodeFeedback(err.message || "Não foi possível validar o código.");
+          setCodeFeedback("Não foi possível validar este código agora. Solicite o código oficial ao seu sindicato e tente novamente.");
         }
       } else {
-        setCodeFeedback("Não foi possível validar o código.");
+        setCodeFeedback("Não foi possível validar este código agora. Solicite o código oficial ao seu sindicato e tente novamente.");
       }
     }
   }
 
   async function handleCreateCase() {
+    const trimmedWorkerName = workerName.trim();
+    const trimmedCompanyName = companyName.trim();
     const cpfDigits = digitsOnly(workerCPF);
     const cnpjDigits = digitsOnly(companyCNPJ);
 
+    if (!trimmedWorkerName) {
+      setError("Informe o nome do trabalhador.");
+      return;
+    }
+    if (cpfDigits.length !== 11) {
+      setError("Informe um CPF válido com 11 dígitos.");
+      return;
+    }
+    if (!isValidEmail(workerEmail)) {
+      setError("Informe um email válido.");
+      return;
+    }
+    if (!trimmedCompanyName) {
+      setError("Informe o nome da empresa conforme consta no PPP.");
+      return;
+    }
+    if (cnpjDigits.length !== 14) {
+      setError("Informe um CNPJ válido com 14 dígitos.");
+      return;
+    }
     if (!selectedFile) {
       setError("Anexe o PDF do PPP para continuar.");
       return;
     }
     if (selectedFile.size > MAX_PDF_MB * 1024 * 1024) {
       setError(`Arquivo muito grande. Envie um PDF de até ${MAX_PDF_MB}MB.`);
-      return;
-    }
-    if (!isValidEmail(workerEmail)) {
-      setError("Informe um email válido.");
       return;
     }
 
@@ -173,10 +191,10 @@ export default function PublicCaseNewPage() {
 
     try {
       const created = await createPublicCase({
-        workerName: workerName.trim(),
+        workerName: trimmedWorkerName,
         workerCPF: cpfDigits,
         workerEmail: workerEmail.trim(),
-        companyName: companyName.trim(),
+        companyName: trimmedCompanyName,
         companyCNPJ: cnpjDigits,
         unionCode: normalizedCode || undefined,
         file: selectedFile,
@@ -230,7 +248,10 @@ export default function PublicCaseNewPage() {
           <div>
             <h1 className="text-3xl font-semibold text-slate-900">Análise do PPP</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Preencha os dados, envie o documento e siga para o pagamento.
+              Preencha os dados como constam no documento, envie o PDF e siga para o pagamento.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Se houver divergência, você poderá corrigir os dados depois.
             </p>
           </div>
           <div className="flex gap-2">
@@ -278,7 +299,7 @@ export default function PublicCaseNewPage() {
               <h2 className="text-base font-semibold text-slate-900">Dados do trabalhador e empresa</h2>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="text-xs text-slate-600">
-                  Nome do trabalhador
+                  Nome do trabalhador *
                   <input
                     value={workerName}
                     onChange={(event) => setWorkerName(event.target.value)}
@@ -286,15 +307,16 @@ export default function PublicCaseNewPage() {
                   />
                 </label>
                 <label className="text-xs text-slate-600">
-                  CPF
+                  CPF *
                   <input
                     value={formatCpf(workerCPF)}
                     onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
+                  <span className="mt-1 block text-[11px] text-slate-500">Use apenas números.</span>
                 </label>
                 <label className="text-xs text-slate-600">
-                  Email para receber o link
+                  Email para receber o link *
                   <input
                     type="email"
                     value={workerEmail}
@@ -303,20 +325,22 @@ export default function PublicCaseNewPage() {
                   />
                 </label>
                 <label className="text-xs text-slate-600">
-                  Empresa
+                  Empresa *
                   <input
                     value={companyName}
                     onChange={(event) => setCompanyName(event.target.value)}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
+                  <span className="mt-1 block text-[11px] text-slate-500">Preencha como aparece no PPP.</span>
                 </label>
                 <label className="text-xs text-slate-600 md:col-span-2">
-                  CNPJ
+                  CNPJ *
                   <input
                     value={formatCnpj(companyCNPJ)}
                     onChange={(event) => setCompanyCNPJ(digitsOnly(event.target.value))}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
+                  <span className="mt-1 block text-[11px] text-slate-500">Use apenas números.</span>
                 </label>
               </div>
             </div>
@@ -398,7 +422,7 @@ export default function PublicCaseNewPage() {
                 </div>
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                Sem codigo: R$ 87,90. Com codigo valido do sindicato: R$ 67,90.
+                Sem código: R$ 87,90. Com código válido do sindicato: R$ 67,90.
               </p>
             </div>
 

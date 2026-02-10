@@ -1585,6 +1585,18 @@ export async function getPublicCase(caseId: string): Promise<PublicCaseDetail> {
   return handleJsonResponse(res);
 }
 
+export async function updatePublicCaseDetails(
+  caseId: string,
+  payload: UpdateCaseDetailsPayload
+): Promise<{ ok: boolean; status?: string }> {
+  const res = await apiFetch(`/public/cases/${caseId}/details`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleJsonResponse(res);
+}
+
 export async function reuploadPublicPpp(caseId: string, file: File): Promise<any> {
   const formData = new FormData();
   formData.append('file', file);

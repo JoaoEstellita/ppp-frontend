@@ -10,6 +10,7 @@ import {
   getPublicInputDownload,
   getPublicResultDownload,
   reuploadPublicPpp,
+  updatePublicCaseDetails,
 } from "@/src/services/api";
 import { Button } from "@/components/Button";
 
@@ -30,6 +31,31 @@ function formatPrice(value?: number | null) {
   }).format(Number(value || 0));
 }
 
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatCpf(value: string) {
+  const digits = digitsOnly(value).slice(0, 11);
+  if (!digits) return "";
+  const p1 = digits.slice(0, 3);
+  const p2 = digits.slice(3, 6);
+  const p3 = digits.slice(6, 9);
+  const p4 = digits.slice(9, 11);
+  return `${p1}.${p2}.${p3}-${p4}`.replace(/[-.]$/, "");
+}
+
+function formatCnpj(value: string) {
+  const digits = digitsOnly(value).slice(0, 14);
+  if (!digits) return "";
+  const p1 = digits.slice(0, 2);
+  const p2 = digits.slice(2, 5);
+  const p3 = digits.slice(5, 8);
+  const p4 = digits.slice(8, 12);
+  const p5 = digits.slice(12, 14);
+  return `${p1}.${p2}.${p3}/${p4}-${p5}`.replace(/[-./]$/, "");
+}
+
 function formatStatus(status?: string | null) {
   switch (status) {
     case "awaiting_payment":
@@ -43,6 +69,8 @@ function formatStatus(status?: string | null) {
       return "Em processamento";
     case "done":
       return "Concluído";
+    case "done_warning":
+      return "Concluído com alerta";
     case "error":
       return "Ação necessária";
     default:
@@ -54,6 +82,8 @@ function getStatusTone(status?: string | null) {
   switch (status) {
     case "done":
       return "bg-emerald-100 text-emerald-700";
+    case "done_warning":
+      return "bg-amber-100 text-amber-700";
     case "error":
       return "bg-red-100 text-red-700";
     case "processing":
@@ -68,7 +98,7 @@ function getStatusTone(status?: string | null) {
 
 function resolvePublicErrorMessage(code?: string | null, message?: string | null) {
   if (message) return message;
-  switch (code) {
+  switch ((code || "").toLowerCase()) {
     case "download_failed":
       return "Falha ao baixar o documento. Reenvie o PDF.";
     case "ocr_failed":
@@ -78,7 +108,7 @@ function resolvePublicErrorMessage(code?: string | null, message?: string | null
     case "validation_failed":
       return "Falha de validação técnica. Reenvie o PDF com dados corretos.";
     case "conflict_detected":
-      return "Há divergências entre cadastro e documento. Revise os dados e reenvie.";
+      return "Há divergências entre os dados do cadastro e o documento. Corrija os dados ou reenvie o PDF.";
     default:
       return "Erro no processamento. Tente reenviar o PDF.";
   }
@@ -108,6 +138,13 @@ type TimelineStep = {
   active: boolean;
 };
 
+type EditableIdentity = {
+  workerName: string;
+  workerCPF: string;
+  companyName: string;
+  companyCNPJ: string;
+};
+
 export default function PublicCaseStatusPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -125,6 +162,17 @@ export default function PublicCaseStatusPage() {
   const [downloadResultError, setDownloadResultError] = useState<string | null>(null);
   const [reuploading, setReuploading] = useState(false);
   const [reuploadError, setReuploadError] = useState<string | null>(null);
+
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsSuccess, setDetailsSuccess] = useState<string | null>(null);
+  const [detailsForm, setDetailsForm] = useState<EditableIdentity>({
+    workerName: "",
+    workerCPF: "",
+    companyName: "",
+    companyCNPJ: "",
+  });
 
   const fetchCase = useCallback(async () => {
     if (!caseId) return;
@@ -163,6 +211,16 @@ export default function PublicCaseStatusPage() {
     return () => clearInterval(timer);
   }, [caseDetail?.case?.status, fetchCase]);
 
+  useEffect(() => {
+    if (!caseDetail?.case) return;
+    setDetailsForm({
+      workerName: caseDetail.case?.worker?.name || "",
+      workerCPF: digitsOnly(caseDetail.case?.worker?.cpf || ""),
+      companyName: caseDetail.case?.company?.name || "",
+      companyCNPJ: digitsOnly(caseDetail.case?.company?.cnpj || ""),
+    });
+  }, [caseDetail?.case]);
+
   const status = caseDetail?.case?.status as string | undefined;
   const payment = caseDetail?.payment || null;
   const lastErrorCode = caseDetail?.case?.last_error_code ?? null;
@@ -195,7 +253,7 @@ export default function PublicCaseStatusPage() {
   const timeline = useMemo<TimelineStep[]>(() => {
     const paymentDone = payment?.status === "approved";
     const processing = status === "processing" || status === "paid_processing";
-    const done = status === "done";
+    const done = status === "done" || status === "done_warning";
     const errorStatus = status === "error";
     return [
       { id: "case", title: "Caso criado", done: true, active: !paymentDone },
@@ -232,6 +290,47 @@ export default function PublicCaseStatusPage() {
       }
     } finally {
       setCreatingPayment(false);
+    }
+  }
+
+  async function handleSaveDetails() {
+    if (!caseId) return;
+    setDetailsError(null);
+    setDetailsSuccess(null);
+
+    const workerName = detailsForm.workerName.trim();
+    const companyName = detailsForm.companyName.trim();
+    const workerCPF = digitsOnly(detailsForm.workerCPF);
+    const companyCNPJ = digitsOnly(detailsForm.companyCNPJ);
+
+    if (!workerName || !companyName || workerCPF.length !== 11 || companyCNPJ.length !== 14) {
+      setDetailsError("Preencha nome, CPF (11 dígitos), empresa e CNPJ (14 dígitos).");
+      return;
+    }
+
+    setDetailsSaving(true);
+    try {
+      await updatePublicCaseDetails(caseId, {
+        workerName,
+        workerCPF,
+        companyName,
+        companyCNPJ,
+      });
+      setDetailsSuccess("Dados atualizados. O caso está pronto para novo envio.");
+      setEditingDetails(false);
+      await fetchCase();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const detailsMessage =
+          typeof err.details === "object" && err.details !== null
+            ? (err.details as any).message || (err.details as any).error
+            : null;
+        setDetailsError(detailsMessage || err.message || "Erro ao atualizar os dados.");
+      } else {
+        setDetailsError("Erro ao atualizar os dados.");
+      }
+    } finally {
+      setDetailsSaving(false);
     }
   }
 
@@ -313,15 +412,15 @@ export default function PublicCaseStatusPage() {
           <Link href="/ppp/novo" className="text-sm font-medium text-blue-700 hover:underline">
             Criar novo caso
           </Link>
-            <Link href="/ppp" className="text-sm font-medium text-slate-700 hover:underline">
-              Voltar para início
-            </Link>
-            <button className="text-sm font-medium text-slate-700 hover:underline" onClick={fetchCase}>
-              Tentar novamente
-            </button>
-          </div>
-        </main>
-      );
+          <Link href="/ppp" className="text-sm font-medium text-slate-700 hover:underline">
+            Voltar para início
+          </Link>
+          <button className="text-sm font-medium text-slate-700 hover:underline" onClick={fetchCase}>
+            Tentar novamente
+          </button>
+        </div>
+      </main>
+    );
   }
 
   if (!caseDetail?.case) {
@@ -332,7 +431,13 @@ export default function PublicCaseStatusPage() {
     );
   }
 
-  const showErrorBanner = status === "error" || Boolean(lastErrorCode) || Boolean(lastErrorMessage);
+  const showErrorBanner =
+    status === "error" ||
+    Boolean(lastErrorCode) ||
+    Boolean(lastErrorMessage) ||
+    Boolean(caseDetail?.case?.has_divergence);
+
+  const showIdentityEdit = showErrorBanner || status === "done_warning";
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -359,9 +464,16 @@ export default function PublicCaseStatusPage() {
             {lastErrorStep && <p className="mt-1 text-xs">Etapa: {lastErrorStep}</p>}
           </div>
         )}
+
         {actionError && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
             {actionError}
+          </div>
+        )}
+
+        {detailsSuccess && (
+          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+            {detailsSuccess}
           </div>
         )}
 
@@ -388,19 +500,102 @@ export default function PublicCaseStatusPage() {
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
           <div className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Dados informados</h3>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Trabalhador</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{worker?.name || "-"}</p>
-                  <p className="mt-1 text-xs text-slate-600">CPF: {worker?.cpf || "-"}</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Empresa</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{company?.name || "-"}</p>
-                  <p className="mt-1 text-xs text-slate-600">CNPJ: {company?.cnpj || "-"}</p>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-900">Dados informados</h3>
+                {showIdentityEdit && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingDetails((prev) => !prev);
+                      setDetailsError(null);
+                      setDetailsSuccess(null);
+                    }}
+                  >
+                    {editingDetails ? "Cancelar" : "Corrigir dados"}
+                  </Button>
+                )}
               </div>
+
+              {!editingDetails && (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Trabalhador</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{worker?.name || "-"}</p>
+                    <p className="mt-1 text-xs text-slate-600">CPF: {worker?.cpf || "-"}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Empresa</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{company?.name || "-"}</p>
+                    <p className="mt-1 text-xs text-slate-600">CNPJ: {company?.cnpj || "-"}</p>
+                  </div>
+                </div>
+              )}
+
+              {editingDetails && (
+                <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-600">
+                    Corrija os dados como aparecem no PPP. Depois disso, reenvie para análise.
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="text-xs text-slate-600">
+                      Nome do trabalhador
+                      <input
+                        value={detailsForm.workerName}
+                        onChange={(event) =>
+                          setDetailsForm((prev) => ({ ...prev, workerName: event.target.value }))
+                        }
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      CPF
+                      <input
+                        value={formatCpf(detailsForm.workerCPF)}
+                        onChange={(event) =>
+                          setDetailsForm((prev) => ({ ...prev, workerCPF: digitsOnly(event.target.value) }))
+                        }
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      Empresa
+                      <input
+                        value={detailsForm.companyName}
+                        onChange={(event) =>
+                          setDetailsForm((prev) => ({ ...prev, companyName: event.target.value }))
+                        }
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      CNPJ
+                      <input
+                        value={formatCnpj(detailsForm.companyCNPJ)}
+                        onChange={(event) =>
+                          setDetailsForm((prev) => ({ ...prev, companyCNPJ: digitsOnly(event.target.value) }))
+                        }
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+                  {detailsError && <p className="text-xs text-red-600">{detailsError}</p>}
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveDetails} disabled={detailsSaving}>
+                      {detailsSaving ? "Salvando..." : "Salvar correções"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditingDetails(false);
+                        setDetailsError(null);
+                      }}
+                    >
+                      Fechar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <p className="mt-3 text-xs text-slate-500">Atualizado em {formatDate(caseDetail.case.updated_at)}</p>
             </div>
 

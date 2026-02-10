@@ -7,6 +7,7 @@ import { Badge } from "@/components/Badge";
 import {
   adminGetCase,
   adminGetDocumentDownloadUrl,
+  adminUpdateCaseDetails,
   AdminCaseDetail,
   devMarkCaseAsPaid,
   adminResetAwaitingPdf,
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
   processing: "Processando",
   paid_processing: "Pago / Processando",
   done: "Concluído",
+  done_warning: "Concluído com alerta",
   pending_info: "Pendências",
   error: "Erro",
 };
@@ -33,6 +35,8 @@ function getStatusBadgeVariant(status: string): "success" | "warning" | "danger"
   switch (status) {
     case "done":
       return "success";
+    case "done_warning":
+      return "warning";
     case "processing":
     case "paid_processing":
       return "info";
@@ -65,6 +69,27 @@ function formatDate(dateStr: string | null | undefined): string {
 
 type FeedbackMessage = { type: "success" | "error"; text: string };
 
+function digitsOnly(value: string | null | undefined): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function formatCpf(value: string | null | undefined): string {
+  const v = digitsOnly(value).slice(0, 11);
+  if (v.length <= 3) return v;
+  if (v.length <= 6) return `${v.slice(0, 3)}.${v.slice(3)}`;
+  if (v.length <= 9) return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6)}`;
+  return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6, 9)}-${v.slice(9)}`;
+}
+
+function formatCnpj(value: string | null | undefined): string {
+  const v = digitsOnly(value).slice(0, 14);
+  if (v.length <= 2) return v;
+  if (v.length <= 5) return `${v.slice(0, 2)}.${v.slice(2)}`;
+  if (v.length <= 8) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5)}`;
+  if (v.length <= 12) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8)}`;
+  return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8, 12)}-${v.slice(12)}`;
+}
+
 export default function AdminCaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -78,6 +103,14 @@ export default function AdminCaseDetailPage() {
   const [caseEvents, setCaseEvents] = useState<CaseEvent[]>([]);
   const [reuploading, setReuploading] = useState(false);
   const [reuploadMessage, setReuploadMessage] = useState<FeedbackMessage | null>(null);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsForm, setDetailsForm] = useState({
+    workerName: "",
+    workerCpf: "",
+    companyName: "",
+    companyCnpj: "",
+  });
 
   const loadCaseEvents = useCallback(async () => {
     if (!caseId) return;
@@ -107,6 +140,15 @@ export default function AdminCaseDetailPage() {
     loadCase();
     loadCaseEvents();
   }, [loadCase, loadCaseEvents]);
+
+  useEffect(() => {
+    setDetailsForm({
+      workerName: String(caseDetail?.worker?.name ?? ""),
+      workerCpf: formatCpf(caseDetail?.worker?.cpf ?? ""),
+      companyName: String(caseDetail?.company?.name ?? ""),
+      companyCnpj: formatCnpj(caseDetail?.company?.cnpj ?? ""),
+    });
+  }, [caseDetail?.worker?.name, caseDetail?.worker?.cpf, caseDetail?.company?.name, caseDetail?.company?.cnpj]);
 
   // Polling automático quando caso está em processing (a cada 10 segundos)
   useEffect(() => {
@@ -232,6 +274,41 @@ export default function AdminCaseDetailPage() {
     }
   };
 
+  const handleSaveDetails = async () => {
+    if (!caseId) return;
+    const workerName = detailsForm.workerName.trim();
+    const workerCpf = digitsOnly(detailsForm.workerCpf);
+    const companyName = detailsForm.companyName.trim();
+    const companyCnpj = digitsOnly(detailsForm.companyCnpj);
+
+    if (!workerName || workerCpf.length !== 11 || !companyName || companyCnpj.length !== 14) {
+      setFeedback({
+        type: "error",
+        text: "Preencha Nome/CPF/Empresa/CNPJ corretamente antes de salvar.",
+      });
+      return;
+    }
+
+    setDetailsSaving(true);
+    setFeedback(null);
+    try {
+      await adminUpdateCaseDetails(caseId, {
+        workerName,
+        workerCPF: workerCpf,
+        companyName,
+        companyCNPJ: companyCnpj,
+      });
+      setEditingDetails(false);
+      setFeedback({ type: "success", text: "Dados atualizados com sucesso." });
+      await loadCase();
+      await loadCaseEvents();
+    } catch (err) {
+      setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setDetailsSaving(false);
+    }
+  };
+
   // Verificar se o modo DEV está habilitado
   const isDevModeEnabled = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -278,18 +355,19 @@ export default function AdminCaseDetailPage() {
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
   const pppInputDoc = documents.find((doc) => doc.document_type === "ppp_input");
   const errorCode = String(caseData.last_error_code ?? "").toLowerCase();
+  const hasDivergence = errorCode === "conflict_detected" || Boolean((caseData as any).has_divergence);
   const errorMessage =
     caseData.last_error_message ||
     (errorCode === "ocr_size_limit"
-      ? "O arquivo enviado e muito grande para leitura automatica (limite 5MB). Reenvie um PDF menor ou comprimido."
+      ? "O arquivo enviado é muito grande para leitura automatizada (limite 5MB). Reenvie um PDF menor ou comprimido."
       : errorCode === "download_failed"
       ? "Falha ao baixar o PDF enviado. Reenvie o arquivo."
       : errorCode === "ocr_failed"
       ? "Falha na leitura do documento. Reenvie o PDF com melhor qualidade."
       : errorCode === "conflict_detected"
-      ? "Ha divergencias entre cadastro e documento."
+      ? "Há divergências entre cadastro e documento."
       : errorCode === "validation_failed"
-      ? "Falha de validacao tecnica. Verifique os dados e reenviar o PPP."
+      ? "Falha de validação técnica. Verifique os dados e reenvie o PPP."
       : "");
 
   // Variável intermediária com tipo explícito para evitar erro de inferência unknown
@@ -394,6 +472,69 @@ export default function AdminCaseDetailPage() {
           )}
         </div>
       </div>
+
+      {(caseData.status === "error" || hasDivergence) && (
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-700">Correção de dados do cadastro</h3>
+            <Button
+              onClick={() => setEditingDetails((v) => !v)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {editingDetails ? "Cancelar" : "Editar dados"}
+            </Button>
+          </div>
+          <p className="text-sm text-gray-500">
+            Atualize os dados para reduzir divergências no processamento.
+          </p>
+
+          {editingDetails && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-gray-600">Nome do trabalhador</span>
+                <input
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  value={detailsForm.workerName}
+                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, workerName: e.target.value }))}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-gray-600">CPF</span>
+                <input
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  value={detailsForm.workerCpf}
+                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, workerCpf: formatCpf(e.target.value) }))}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-gray-600">Empresa</span>
+                <input
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  value={detailsForm.companyName}
+                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, companyName: e.target.value }))}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-gray-600">CNPJ</span>
+                <input
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  value={detailsForm.companyCnpj}
+                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, companyCnpj: formatCnpj(e.target.value) }))}
+                />
+              </label>
+              <div className="sm:col-span-2 pt-2">
+                <Button
+                  onClick={handleSaveDetails}
+                  disabled={detailsSaving}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {detailsSaving ? "Salvando..." : "Salvar correções"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Status N8N - Painel de Monitoramento */}
       {(caseData.status === "processing" || caseData.last_n8n_status) && (
@@ -548,7 +689,7 @@ export default function AdminCaseDetailPage() {
       {/* Erro (se houver) */}
       {caseData.status === "error" && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
-          <div className="flex items-start gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -609,8 +750,8 @@ export default function AdminCaseDetailPage() {
                 disabled={actionLoading === "submit"}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-              {actionLoading === "submit" ? "Reenviando..." : "Reenviar para análise"}
-            </Button>
+                {actionLoading === "submit" ? "Reenviando..." : "Reenviar para análise"}
+              </Button>
           </div>
         </div>
       )}
