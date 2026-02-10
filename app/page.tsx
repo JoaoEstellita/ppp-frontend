@@ -118,7 +118,7 @@ export default function LandingPage() {
               </h1>
               <p className="text-lg text-blue-100">
                 Ferramenta para advogados, peritos, empresas e trabalhadores conferirem PPP com base na
-                IN 128/2022 e nas NRs, gerando parecer técnico pronto para conferência humana.
+                IN 128/2022 e nas NRs, gerando parecer técnico pronto e validado.
                 Ideal para quem precisa de atestado profissional do PPP.
               </p>
               <div className="flex flex-wrap gap-3">
