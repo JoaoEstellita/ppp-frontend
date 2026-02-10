@@ -83,12 +83,15 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              onClick={() => router.push("/ppp")}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold min-w-[250px]"
-            >
-              Entrar como Trabalhador
-            </Button>
+            <div className="flex flex-col items-start gap-1">
+              <Button
+                onClick={() => router.push("/ppp")}
+                className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold min-w-[250px]"
+              >
+                Entrar como Trabalhador
+              </Button>
+              <span className="text-xs text-gray-500">Crie seu caso e valide o PPP por aqui.</span>
+            </div>
             <button
               onClick={() => router.push("/login")}
               className="md:hidden text-sm font-medium text-blue-700 underline"
