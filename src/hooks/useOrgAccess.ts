@@ -72,24 +72,21 @@ export function useOrgAccess(): OrgAccess {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (admin && active) {
-        setState({ loading: false, isPlatformAdmin: true, org: null });
-        return;
-      }
-
-      const { data: member } = await supabaseClient
+      const { data: members } = await supabaseClient
         .from("org_members")
         .select("org_id, role, organizations ( id, name, slug, status )")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .order("created_at", { ascending: true })
+        .limit(1);
 
       if (!active) return;
 
-      const org = normalizeOrg(member?.organizations);
+      const firstMember = Array.isArray(members) && members.length > 0 ? members[0] : null;
+      const org = normalizeOrg(firstMember?.organizations);
 
       setState({
         loading: false,
-        isPlatformAdmin: false,
+        isPlatformAdmin: !!admin,
         org,
       });
     }

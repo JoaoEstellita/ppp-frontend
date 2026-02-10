@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/lib/authContext";
 import { getNotifications, markNotificationRead, OrgNotification } from "@/src/services/api";
+import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
 export function Topbar() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const params = useParams();
   const slug =
     typeof params?.slug === "string"
@@ -15,6 +18,8 @@ export function Topbar() {
       : Array.isArray(params?.slug)
       ? params.slug[0]
       : null;
+  const { isPlatformAdmin, org } = useOrgAccess();
+  const isAdminArea = pathname?.startsWith("/admin");
 
   const [notifications, setNotifications] = useState<OrgNotification[]>([]);
   const [open, setOpen] = useState(false);
@@ -53,6 +58,16 @@ export function Topbar() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">PPP Sindicato</h1>
         <div className="flex items-center space-x-4 text-sm text-gray-700 relative">
+          {isPlatformAdmin && !isAdminArea && (
+            <Button variant="outline" onClick={() => router.push("/admin")}>
+              Modo Admin
+            </Button>
+          )}
+          {org?.slug && isAdminArea && (
+            <Button variant="outline" onClick={() => router.push(`/s/${org.slug}/dashboard`)}>
+              Modo Sindicato
+            </Button>
+          )}
           {slug && (
             <button
               type="button"
