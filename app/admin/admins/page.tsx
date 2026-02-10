@@ -11,6 +11,11 @@ import {
 } from "@/src/services/api";
 import { supabaseClient } from "@/lib/supabaseClient";
 
+const PROTECTED_ADMIN_EMAILS = new Set([
+  "joaoestellita@conectivos.net",
+  "guedes@conectivos.net",
+]);
+
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "-";
   try {
@@ -179,6 +184,7 @@ export default function AdminPlatformAdminsPage() {
                 <tbody className="divide-y">
                   {sortedAdmins.map((admin) => {
                     const isSelf = currentUserId && admin.user_id === currentUserId;
+                    const isProtected = PROTECTED_ADMIN_EMAILS.has((admin.email || "").toLowerCase());
                     return (
                       <tr key={admin.user_id} className="hover:bg-gray-50">
                         <td className="px-3 py-2 text-gray-900">{admin.email || "-"}</td>
@@ -187,9 +193,15 @@ export default function AdminPlatformAdminsPage() {
                         <td className="px-3 py-2 text-right">
                           <button
                             onClick={() => handleRemoveAdmin(admin.user_id)}
-                            disabled={isSelf || removingUserId === admin.user_id}
+                            disabled={isSelf || isProtected || removingUserId === admin.user_id}
                             className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                            title={isSelf ? "Não é permitido remover seu próprio acesso" : "Remover admin"}
+                            title={
+                              isProtected
+                                ? "Conta protegida: remoção bloqueada"
+                                : isSelf
+                                ? "Não é permitido remover seu próprio acesso"
+                                : "Remover admin"
+                            }
                           >
                             {removingUserId === admin.user_id ? "Removendo..." : "Remover"}
                           </button>
@@ -206,4 +218,3 @@ export default function AdminPlatformAdminsPage() {
     </div>
   );
 }
-

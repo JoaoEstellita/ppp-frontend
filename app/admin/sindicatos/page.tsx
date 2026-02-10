@@ -36,6 +36,16 @@ function roleLabel(member: OrgMember): string {
   return "Membro";
 }
 
+const PROTECTED_ADMIN_EMAILS = new Set([
+  "joaoestellita@conectivos.net",
+  "guedes@conectivos.net",
+]);
+
+function isProtectedAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return PROTECTED_ADMIN_EMAILS.has(email.trim().toLowerCase());
+}
+
 export default function AdminOrganizationsPage() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [form, setForm] = useState({ name: "", slug: "", emails: "" });
@@ -428,6 +438,7 @@ export default function AdminOrganizationsPage() {
                       </thead>
                       <tbody className="divide-y">
                         {invites.map((invite) => {
+                          const isProtectedInvite = isProtectedAdminEmail(invite.email);
                           const acceptedMember =
                             invite.status === "accepted"
                               ? members.find(
@@ -460,8 +471,9 @@ export default function AdminOrganizationsPage() {
                                 {invite.status === "pending" && (
                                   <button
                                     onClick={() => handleRevokeInvite(invite.id)}
-                                    disabled={revokingId === invite.id}
+                                    disabled={isProtectedInvite || revokingId === invite.id}
                                     className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                    title={isProtectedInvite ? "Conta protegida: revogação bloqueada" : "Revogar convite"}
                                   >
                                     {revokingId === invite.id ? "Revogando..." : "Revogar"}
                                   </button>
@@ -473,8 +485,16 @@ export default function AdminOrganizationsPage() {
                                     {acceptedMember && (
                                       <button
                                         onClick={() => handleRemoveMember(acceptedMember)}
-                                        disabled={removingMemberId === acceptedMember.id}
+                                        disabled={
+                                          isProtectedAdminEmail(acceptedMember.email) ||
+                                          removingMemberId === acceptedMember.id
+                                        }
                                         className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                        title={
+                                          isProtectedAdminEmail(acceptedMember.email)
+                                            ? "Conta protegida: remoção bloqueada"
+                                            : "Remover acesso"
+                                        }
                                       >
                                         {removingMemberId === acceptedMember.id ? "Removendo..." : "Remover acesso"}
                                       </button>
@@ -535,8 +555,9 @@ export default function AdminOrganizationsPage() {
                             <td className="px-3 py-2 text-right">
                               <button
                                 onClick={() => handleRemoveMember(member)}
-                                disabled={removingMemberId === member.id}
+                                disabled={isProtectedAdminEmail(member.email) || removingMemberId === member.id}
                                 className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                title={isProtectedAdminEmail(member.email) ? "Conta protegida: remoção bloqueada" : "Remover"}
                               >
                                 {removingMemberId === member.id ? "Removendo..." : "Remover"}
                               </button>
