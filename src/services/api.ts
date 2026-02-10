@@ -21,7 +21,7 @@ const craEnv =
 
 // Fallback padrao agora e o backend em producao, NAO mais localhost
 export const API_BASE_URL: string =
-  nextEnv || viteEnv || craEnv || "https://ppp-backend-sjic.onrender.com";
+  nextEnv || viteEnv || craEnv || "https://ppp-backend-sjjc.onrender.com";
 
 // Tipos basicos usados pelo frontend
 
