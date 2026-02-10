@@ -5,8 +5,6 @@ import Link from "next/link";
 import { Button } from "@/components/Button";
 import {
   adminListSupportCases,
-  adminRetryCase,
-  adminRetryBulk,
   adminResolveSupport,
   adminSubmitCase,
   adminSubmitBulk,
@@ -53,23 +51,6 @@ export default function AdminSupportPage() {
   useEffect(() => {
     loadCases();
   }, [loadCases]);
-
-  const handleRetry = async (caseId: string) => {
-    setActionLoading(`retry-${caseId}`);
-    setMessage(null);
-    try {
-      const result = await adminRetryCase(caseId);
-      setMessage({ 
-        type: "success", 
-        text: `${result.message} O caso foi movido para status "processing" e pode sair desta lista.`
-      });
-      await loadCases();
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Erro ao reprocessar." });
-    } finally {
-      setActionLoading(null);
-    }
-  };
 
   const handleResolve = async (requestId: string) => {
     setActionLoading(`resolve-${requestId}`);
@@ -120,10 +101,14 @@ export default function AdminSupportPage() {
     }
   };
 
+  const supportOpenCount = cases.filter((item) => Boolean(item.support_request)).length;
+  const processingCount = cases.filter((item) => item.case_status === "processing").length;
+  const highRetryCount = cases.filter((item) => Number(item.retry_count || 0) >= 3).length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-gray-900">Casos com Erro / Suporte</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Suporte (Erro e Reenvio)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={filter}
@@ -149,6 +134,22 @@ export default function AdminSupportPage() {
           >
             Enviar todos com erro
           </Button>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-xs text-gray-500">Casos no painel</div>
+          <div className="text-2xl font-bold text-gray-900">{cases.length}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-xs text-gray-500">Solicitações de suporte abertas</div>
+          <div className="text-2xl font-bold text-orange-700">{supportOpenCount}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-xs text-gray-500">Casos com 3+ retries</div>
+          <div className="text-2xl font-bold text-red-700">{highRetryCount}</div>
+          <div className="text-xs text-gray-400 mt-1">Em processamento: {processingCount}</div>
         </div>
       </div>
 

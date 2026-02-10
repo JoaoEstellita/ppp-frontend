@@ -264,6 +264,29 @@ export type BillingMonth = {
   generated_at?: string | null;
 };
 
+export type AdminPayment = {
+  id: string;
+  org_id: string;
+  case_id: string | null;
+  amount: number | null;
+  currency: string | null;
+  status: string;
+  payment_url?: string | null;
+  external_reference?: string | null;
+  mp_payment_id?: string | null;
+  paid_at: string | null;
+  created_at: string;
+};
+
+export type AdminUsageEvent = {
+  id: string;
+  org_id: string | null;
+  case_id?: string | null;
+  type: string;
+  payload?: Record<string, unknown> | null;
+  created_at: string;
+};
+
 function normalizeCaseStatus(rawStatus: unknown): { status: CaseStatus; raw: string | null } {
   if (rawStatus === undefined || rawStatus === null) {
     return { status: "awaiting_payment", raw: null };
@@ -914,16 +937,30 @@ export async function createOrganization(payload: {
   return data as Organization;
 }
 
-export async function getAdminPayments(): Promise<any[]> {
-  const res = await apiFetch("/admin/payments");
+export async function getAdminPayments(params?: {
+  org_id?: string;
+  status?: string;
+}): Promise<AdminPayment[]> {
+  const search = new URLSearchParams();
+  if (params?.org_id) search.set("org_id", params.org_id);
+  if (params?.status) search.set("status", params.status);
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  const res = await apiFetch(`/admin/payments${suffix}`);
   const data = await handleJsonResponse(res);
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data) ? (data as AdminPayment[]) : [];
 }
 
-export async function getAdminUsage(): Promise<any[]> {
-  const res = await apiFetch("/admin/usage");
+export async function getAdminUsage(params?: {
+  org_id?: string;
+  type?: string;
+}): Promise<AdminUsageEvent[]> {
+  const search = new URLSearchParams();
+  if (params?.org_id) search.set("org_id", params.org_id);
+  if (params?.type) search.set("type", params.type);
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  const res = await apiFetch(`/admin/usage${suffix}`);
   const data = await handleJsonResponse(res);
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data) ? (data as AdminUsageEvent[]) : [];
 }
 
 export async function getBillingMonths(yearMonth?: string): Promise<BillingMonth[]> {
@@ -933,12 +970,15 @@ export async function getBillingMonths(yearMonth?: string): Promise<BillingMonth
   return Array.isArray(data) ? data : [];
 }
 
-export async function generateBillingMonths(yearMonth: string): Promise<{ ok: boolean }> {
+export async function generateBillingMonths(yearMonth: string): Promise<{
+  ok: boolean;
+  items?: BillingMonth[];
+}> {
   const res = await apiFetch(`/admin/billing-months/generate?year_month=${yearMonth}`, {
     method: "POST",
   });
   const data = await handleJsonResponse(res);
-  return data as { ok: boolean };
+  return data as { ok: boolean; items?: BillingMonth[] };
 }
 
 // ========== DEV ENDPOINTS (apenas para ambiente de desenvolvimento) ==========
