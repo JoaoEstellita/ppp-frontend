@@ -93,14 +93,14 @@ export default function LandingPage() {
               <span className="text-xs text-gray-500">Crie seu caso e valide o PPP por aqui.</span>
             </div>
             <button
-              onClick={() => router.push("/login")}
+              onClick={() => router.push(dashboardHref)}
               className="md:hidden text-sm font-medium text-blue-700 underline"
             >
               Portal sindicato
             </button>
             <div className="hidden md:flex flex-col items-start gap-1">
               <Button
-                onClick={() => router.push("/login")}
+                onClick={() => router.push(dashboardHref)}
                 className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
               >
                 Entrar como sindicato
