@@ -29,13 +29,13 @@ export default function LandingPage() {
           <div className="flex gap-3">
             <Button
               onClick={() => router.push("/ppp")}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold"
+              className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold min-w-[250px]"
             >
               Entrar como Trabalhador
             </Button>
             <Button
               onClick={() => router.push("/login")}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold"
+              className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
             >
               Entrar como sindicato
             </Button>
@@ -160,12 +160,15 @@ export default function LandingPage() {
               Escolha o acesso ideal para voce e acompanhe os PPPs gerados por caso com pagamento confirmado.
             </p>
             <div className="flex gap-3">
-              <Button onClick={() => router.push("/ppp/novo")} className="bg-blue-700 hover:bg-blue-800 text-white">
+              <Button
+                onClick={() => router.push("/ppp/novo")}
+                className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 text-base font-semibold"
+              >
                 Validar meu PPP
               </Button>
               <Button
                 onClick={() => router.push("/login")}
-                className="border border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
+                className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold opacity-90"
               >
                 Entrar como sindicato
               </Button>
