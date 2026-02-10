@@ -75,23 +75,23 @@ export default function LandingPage() {
     });
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gray-50 text-gray-900 overflow-x-hidden">
       <header className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-600 text-white flex items-center justify-center font-bold">
               MP
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-xl font-extrabold tracking-tight">Meu PPP</div>
-              <div className="text-xs text-gray-500">Meu Perfil Profissiográfico Previdenciário</div>
+              <div className="text-xs text-gray-500 leading-tight">Meu Perfil Profissiográfico Previdenciário</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col items-start gap-1">
+          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex w-full flex-col items-start gap-1 sm:w-auto">
               <Button
                 onClick={() => router.push("/ppp")}
-                className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold min-w-[250px]"
+                className="w-full bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 text-base font-semibold sm:w-auto sm:min-w-[250px]"
               >
                 Entrar como Trabalhador
               </Button>
@@ -100,7 +100,7 @@ export default function LandingPage() {
             <button
               onClick={goToSindicatoPortal}
               disabled={orgAccessLoading}
-              className="md:hidden text-sm font-medium text-blue-700 underline"
+              className="md:hidden self-start text-sm font-medium text-blue-700 underline"
             >
               {orgAccessLoading ? "Carregando acesso..." : "Portal sindicato"}
             </button>
