@@ -20,6 +20,7 @@ export function Topbar() {
       : null;
   const { isPlatformAdmin, org } = useOrgAccess();
   const isAdminArea = pathname?.startsWith("/admin");
+  const headerTitle = isAdminArea ? "PPP Admin" : org?.name || "PPP Sindicato";
 
   const [notifications, setNotifications] = useState<OrgNotification[]>([]);
   const [open, setOpen] = useState(false);
@@ -56,7 +57,7 @@ export function Topbar() {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">PPP Sindicato</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{headerTitle}</h1>
         <div className="flex items-center space-x-4 text-sm text-gray-700 relative">
           {isPlatformAdmin && !isAdminArea && (
             <Button variant="outline" onClick={() => router.push("/admin")}>
