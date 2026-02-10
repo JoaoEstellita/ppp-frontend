@@ -28,9 +28,12 @@ export default function LandingPage() {
           <div className="text-xl font-bold">PPP Auditor</div>
           <div className="flex gap-3">
             <Button onClick={() => router.push("/ppp")} className="bg-blue-700 hover:bg-blue-800 text-white">
-              Validar meu PPP
+              Entrar como Trabalhador
             </Button>
-            <Button onClick={() => router.push("/login")} className="bg-slate-900 hover:bg-slate-800 text-white">
+            <Button
+              onClick={() => router.push("/login")}
+              className="border border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
+            >
               Entrar como sindicato
             </Button>
           </div>
@@ -54,10 +57,16 @@ export default function LandingPage() {
                 <Button onClick={() => router.push("/ppp/novo")} className="bg-blue-700 hover:bg-blue-800 text-white">
                   Validar meu PPP
                 </Button>
-                <Button onClick={() => router.push("/login")} className="bg-slate-900 hover:bg-slate-800 text-white">
+                <Button
+                  onClick={() => router.push("/login")}
+                  className="border border-blue-200 bg-white/10 text-blue-50 hover:bg-white/20"
+                >
                   Entrar como sindicato
                 </Button>
-                <Button onClick={() => scrollTo("como-funciona")} className="bg-blue-900 hover:bg-blue-950 text-white">
+                <Button
+                  onClick={() => scrollTo("como-funciona")}
+                  className="border border-blue-200 bg-transparent text-blue-50 hover:bg-white/10"
+                >
                   Ver como funciona
                 </Button>
               </div>
@@ -145,7 +154,10 @@ export default function LandingPage() {
               <Button onClick={() => router.push("/ppp/novo")} className="bg-blue-700 hover:bg-blue-800 text-white">
                 Validar meu PPP
               </Button>
-              <Button onClick={() => router.push("/login")} className="bg-slate-900 hover:bg-slate-800 text-white">
+              <Button
+                onClick={() => router.push("/login")}
+                className="border border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
+              >
                 Entrar como sindicato
               </Button>
             </div>
