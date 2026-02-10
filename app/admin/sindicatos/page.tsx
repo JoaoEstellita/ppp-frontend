@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/Button";
@@ -10,6 +10,9 @@ import {
   listOrgInvites,
   revokeOrgInvite,
   OrgInvite,
+  OrgMember,
+  listOrgMembers,
+  removeOrgMember,
 } from "@/src/services/api";
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -27,6 +30,12 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
+function roleLabel(member: OrgMember): string {
+  if (member.is_platform_admin) return "Admin da plataforma";
+  if (member.role === "org_admin") return "Admin do sindicato";
+  return "Membro";
+}
+
 export default function AdminOrganizationsPage() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [form, setForm] = useState({ name: "", slug: "", emails: "" });
@@ -35,14 +44,16 @@ export default function AdminOrganizationsPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
-  // Estado para modal de convites
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [invites, setInvites] = useState<OrgInvite[]>([]);
+  const [members, setMembers] = useState<OrgMember[]>([]);
   const [newEmails, setNewEmails] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   const loadOrgs = useCallback(async () => {
     setLoading(true);
@@ -60,6 +71,15 @@ export default function AdminOrganizationsPage() {
     loadOrgs();
   }, [loadOrgs]);
 
+  async function reloadInviteModal(orgId: string) {
+    const [invitesData, membersData] = await Promise.all([
+      listOrgInvites(orgId),
+      listOrgMembers(orgId),
+    ]);
+    setInvites(invitesData);
+    setMembers(membersData);
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -73,14 +93,12 @@ export default function AdminOrganizationsPage() {
     setCreating(true);
 
     try {
-      // Criar organização com um user_id placeholder
       const org = await createOrganization({
         name: form.name.trim(),
         slug: form.slug.trim(),
         user_id: "00000000-0000-0000-0000-000000000000",
       });
 
-      // Se tem emails, criar convites
       const emailList = form.emails
         .split(/[,;\n]/)
         .map((e) => e.trim().toLowerCase())
@@ -105,20 +123,23 @@ export default function AdminOrganizationsPage() {
   async function openInviteModal(org: Organization) {
     setSelectedOrg(org);
     setInvites([]);
+    setMembers([]);
     setNewEmails("");
     setInviteError(null);
     setInviteSuccess(null);
     setInviteLoading(true);
+    setMembersLoading(true);
 
     try {
-      const data = await listOrgInvites(org.id);
-      setInvites(data);
+      await reloadInviteModal(org.id);
     } catch (err) {
-      console.error("Erro ao carregar convites:", err);
-      setInviteError("Erro ao carregar convites.");
+      console.error("Erro ao carregar dados de acesso:", err);
+      setInviteError("Erro ao carregar convites e membros.");
       setInvites([]);
+      setMembers([]);
     } finally {
       setInviteLoading(false);
+      setMembersLoading(false);
     }
   }
 
@@ -143,16 +164,24 @@ export default function AdminOrganizationsPage() {
       const result = await createBulkOrgInvites(selectedOrg.id, emailList);
       const created = result.results?.filter((r) => r.status === "created").length ?? 0;
       const skipped = result.results?.filter((r) => r.status === "skipped").length ?? 0;
+      const failed = result.results?.filter((r) => r.status === "failed").length ?? 0;
+      const emailFailures =
+        result.results?.filter((r) => r.status === "created" && r.email_sent === false).length ?? 0;
 
       if (created > 0) {
-        setInviteSuccess(`${created} convite(s) criado(s)${skipped > 0 ? `, ${skipped} já existia(m)` : ""}.`);
+        const parts = [`${created} convite(s) criado(s)`];
+        if (skipped > 0) parts.push(`${skipped} já existia(m)`);
+        if (failed > 0) parts.push(`${failed} falhou/falharam na criação`);
+        if (emailFailures > 0) parts.push(`${emailFailures} com falha no envio de email`);
+        setInviteSuccess(`${parts.join(", ")}.`);
       } else if (skipped > 0) {
         setInviteError(`Todos os ${skipped} email(s) já estavam convidados.`);
+      } else if (failed > 0) {
+        setInviteError("Não foi possível criar os convites informados.");
       }
 
       setNewEmails("");
-      const data = await listOrgInvites(selectedOrg.id);
-      setInvites(data);
+      await reloadInviteModal(selectedOrg.id);
     } catch (err) {
       console.error("Erro ao enviar convites:", err);
       setInviteError("Erro ao enviar convites. Verifique se você tem permissão.");
@@ -171,10 +200,7 @@ export default function AdminOrganizationsPage() {
     try {
       await revokeOrgInvite(selectedOrg.id, inviteId);
       setInviteSuccess("Convite revogado com sucesso.");
-
-      // Recarregar lista
-      const data = await listOrgInvites(selectedOrg.id);
-      setInvites(data);
+      await reloadInviteModal(selectedOrg.id);
     } catch (err) {
       console.error("Erro ao revogar convite:", err);
       setInviteError("Erro ao revogar convite.");
@@ -183,9 +209,29 @@ export default function AdminOrganizationsPage() {
     }
   }
 
+  async function handleRemoveMember(member: OrgMember) {
+    if (!selectedOrg) return;
+
+    setRemovingMemberId(member.id);
+    setInviteError(null);
+    setInviteSuccess(null);
+
+    try {
+      await removeOrgMember(selectedOrg.id, member.id);
+      setInviteSuccess("Membro removido do sindicato com sucesso.");
+      await reloadInviteModal(selectedOrg.id);
+    } catch (err) {
+      console.error("Erro ao remover membro:", err);
+      setInviteError("Erro ao remover membro do sindicato.");
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
   function closeModal() {
     setSelectedOrg(null);
     setInvites([]);
+    setMembers([]);
     setNewEmails("");
     setInviteError(null);
     setInviteSuccess(null);
@@ -195,7 +241,6 @@ export default function AdminOrganizationsPage() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Sindicatos</h2>
 
-      {/* Formulário de criação */}
       <form onSubmit={handleCreate} className="bg-white rounded-lg shadow p-6 space-y-4">
         <h3 className="font-semibold text-gray-800">Criar novo sindicato</h3>
 
@@ -216,7 +261,9 @@ export default function AdminOrganizationsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
             <input
               value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+              onChange={(e) =>
+                setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })
+              }
               placeholder="Ex: sindicato-metalurgicos"
               className="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
@@ -224,9 +271,7 @@ export default function AdminOrganizationsPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Emails para convite (opcional)
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Emails para convite (opcional)</label>
           <textarea
             value={form.emails}
             onChange={(e) => setForm({ ...form, emails: e.target.value })}
@@ -235,7 +280,7 @@ export default function AdminOrganizationsPage() {
             className="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Separe os emails por vírgula, ponto e vírgula ou linha. Os usuários receberão acesso automático ao fazer login.
+            Separe os emails por vírgula, ponto e vírgula ou linha.
           </p>
         </div>
 
@@ -244,7 +289,6 @@ export default function AdminOrganizationsPage() {
         </Button>
       </form>
 
-      {/* Lista de sindicatos */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b border-gray-200">
           <h3 className="font-semibold text-gray-800">Sindicatos cadastrados</h3>
@@ -258,10 +302,7 @@ export default function AdminOrganizationsPage() {
           ) : (
             <div className="space-y-2">
               {orgs.map((org) => (
-                <div
-                  key={org.id}
-                  className="flex items-center justify-between border-b last:border-b-0 py-3"
-                >
+                <div key={org.id} className="flex items-center justify-between border-b last:border-b-0 py-3">
                   <div>
                     <div className="font-semibold text-gray-900">{org.name}</div>
                     <div className="text-xs text-gray-500">/{org.slug}</div>
@@ -269,9 +310,7 @@ export default function AdminOrganizationsPage() {
                   <div className="flex items-center gap-3">
                     <span
                       className={`text-xs px-2 py-1 rounded ${
-                        org.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
+                        org.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
                       }`}
                     >
                       {org.status}
@@ -294,14 +333,12 @@ export default function AdminOrganizationsPage() {
         </div>
       </div>
 
-      {/* Modal de Convites */}
       {selectedOrg && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-semibold text-gray-900 text-lg">Gerenciar Convites</h3>
+                <h3 className="font-semibold text-gray-900 text-lg">Gerenciar Convites e Membros</h3>
                 <p className="text-sm text-gray-500">{selectedOrg.name}</p>
               </div>
               <button
@@ -314,13 +351,15 @@ export default function AdminOrganizationsPage() {
               </button>
             </div>
 
-            {/* Content */}
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
-              {/* Mensagens de feedback */}
               {inviteError && (
                 <div className="text-sm text-red-600 bg-red-50 p-3 rounded flex items-start gap-2">
                   <svg className="w-4 h-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                   {inviteError}
                 </div>
@@ -328,17 +367,18 @@ export default function AdminOrganizationsPage() {
               {inviteSuccess && (
                 <div className="text-sm text-green-600 bg-green-50 p-3 rounded flex items-start gap-2">
                   <svg className="w-4 h-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                   {inviteSuccess}
                 </div>
               )}
 
-              {/* Adicionar convites */}
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  Enviar novos convites
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Enviar novos convites</label>
                 <textarea
                   value={newEmails}
                   onChange={(e) => setNewEmails(e.target.value)}
@@ -346,9 +386,7 @@ export default function AdminOrganizationsPage() {
                   rows={3}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
-                <p className="text-xs text-gray-500">
-                  Separe os emails por vírgula, ponto e vírgula ou quebra de linha.
-                </p>
+                <p className="text-xs text-gray-500">Separe os emails por vírgula, ponto e vírgula ou quebra de linha.</p>
                 <Button
                   onClick={handleSendInvites}
                   disabled={inviteLoading || !newEmails.trim()}
@@ -365,11 +403,8 @@ export default function AdminOrganizationsPage() {
                 </Button>
               </div>
 
-              {/* Lista de convites */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">
-                  Convites ({invites.length})
-                </h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Convites ({invites.length})</h4>
 
                 {inviteLoading && invites.length === 0 ? (
                   <div className="text-gray-500 text-sm flex items-center gap-2 py-4">
@@ -392,44 +427,119 @@ export default function AdminOrganizationsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {invites.map((invite) => (
-                          <tr key={invite.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-900">{invite.email}</td>
+                        {invites.map((invite) => {
+                          const acceptedMember =
+                            invite.status === "accepted"
+                              ? members.find(
+                                  (member) => (member.email || "").toLowerCase() === invite.email.toLowerCase()
+                                )
+                              : null;
+
+                          return (
+                            <tr key={invite.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-900">{invite.email}</td>
+                              <td className="px-3 py-2">
+                                <span
+                                  className={`inline-flex items-center text-xs px-2 py-1 rounded-full font-medium ${
+                                    invite.status === "pending"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : invite.status === "accepted"
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  {invite.status === "pending"
+                                    ? "Pendente"
+                                    : invite.status === "accepted"
+                                    ? "Aceito"
+                                    : "Revogado"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-gray-500 text-xs">{formatDate(invite.created_at)}</td>
+                              <td className="px-3 py-2 text-right">
+                                {invite.status === "pending" && (
+                                  <button
+                                    onClick={() => handleRevokeInvite(invite.id)}
+                                    disabled={revokingId === invite.id}
+                                    className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                  >
+                                    {revokingId === invite.id ? "Revogando..." : "Revogar"}
+                                  </button>
+                                )}
+
+                                {invite.status === "accepted" && (
+                                  <div className="flex items-center justify-end gap-2">
+                                    <span className="text-xs text-gray-400">Aceito em {formatDate(invite.accepted_at)}</span>
+                                    {acceptedMember && (
+                                      <button
+                                        onClick={() => handleRemoveMember(acceptedMember)}
+                                        disabled={removingMemberId === acceptedMember.id}
+                                        className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                      >
+                                        {removingMemberId === acceptedMember.id ? "Removendo..." : "Remover acesso"}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Membros atuais ({members.length})</h4>
+
+                {membersLoading ? (
+                  <div className="text-gray-500 text-sm flex items-center gap-2 py-4">
+                    <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    Carregando membros...
+                  </div>
+                ) : members.length === 0 ? (
+                  <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg">
+                    Nenhum membro ativo neste sindicato.
+                  </div>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Email</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Perfil</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Entrou em</th>
+                          <th className="text-right px-3 py-2 font-medium text-gray-600">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {members.map((member) => (
+                          <tr key={member.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-900">{member.email || "-"}</td>
                             <td className="px-3 py-2">
                               <span
                                 className={`inline-flex items-center text-xs px-2 py-1 rounded-full font-medium ${
-                                  invite.status === "pending"
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : invite.status === "accepted"
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-100 text-gray-600"
+                                  member.is_platform_admin
+                                    ? "bg-purple-100 text-purple-700"
+                                    : member.role === "org_admin"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-700"
                                 }`}
                               >
-                                {invite.status === "pending"
-                                  ? "Pendente"
-                                  : invite.status === "accepted"
-                                  ? "Aceito"
-                                  : "Revogado"}
+                                {roleLabel(member)}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-gray-500 text-xs">
-                              {formatDate(invite.created_at)}
-                            </td>
+                            <td className="px-3 py-2 text-gray-500 text-xs">{formatDate(member.created_at)}</td>
                             <td className="px-3 py-2 text-right">
-                              {invite.status === "pending" && (
-                                <button
-                                  onClick={() => handleRevokeInvite(invite.id)}
-                                  disabled={revokingId === invite.id}
-                                  className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                                >
-                                  {revokingId === invite.id ? "Revogando..." : "Revogar"}
-                                </button>
-                              )}
-                              {invite.status === "accepted" && (
-                                <span className="text-xs text-gray-400">
-                                  Aceito em {formatDate(invite.accepted_at)}
-                                </span>
-                              )}
+                              <button
+                                onClick={() => handleRemoveMember(member)}
+                                disabled={removingMemberId === member.id}
+                                className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                              >
+                                {removingMemberId === member.id ? "Removendo..." : "Remover"}
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -440,12 +550,8 @@ export default function AdminOrganizationsPage() {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="p-4 border-t border-gray-200 shrink-0">
-              <Button
-                onClick={closeModal}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700"
-              >
+              <Button onClick={closeModal} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700">
                 Fechar
               </Button>
             </div>

@@ -1017,6 +1017,16 @@ export type OrgInvite = {
   accepted_at: string | null;
 };
 
+export type OrgMember = {
+  id: string;
+  org_id: string;
+  user_id: string;
+  role: string;
+  created_at: string | null;
+  email: string | null;
+  is_platform_admin: boolean;
+};
+
 export async function createOrgInvite(
   orgId: string,
   email: string,
@@ -1034,13 +1044,33 @@ export async function createBulkOrgInvites(
   orgId: string,
   emails: string[],
   role: string = "org_admin"
-): Promise<{ ok: boolean; results: Array<{ email: string; status: string; invite_id?: string; error?: string }> }> {
+): Promise<{
+  ok: boolean;
+  results: Array<{
+    email: string;
+    status: string;
+    invite_id?: string;
+    error?: string;
+    email_sent?: boolean;
+    email_error?: string | null;
+  }>;
+}> {
   const res = await apiFetch(`/admin/orgs/${orgId}/invites/bulk`, {
     method: "POST",
     body: JSON.stringify({ emails, role }),
   });
   const data = await handleJsonResponse(res);
-  return data as { ok: boolean; results: Array<{ email: string; status: string; invite_id?: string; error?: string }> };
+  return data as {
+    ok: boolean;
+    results: Array<{
+      email: string;
+      status: string;
+      invite_id?: string;
+      error?: string;
+      email_sent?: boolean;
+      email_error?: string | null;
+    }>;
+  };
 }
 
 export async function listOrgInvites(orgId: string): Promise<OrgInvite[]> {
@@ -1051,6 +1081,20 @@ export async function listOrgInvites(orgId: string): Promise<OrgInvite[]> {
 
 export async function revokeOrgInvite(orgId: string, inviteId: string): Promise<{ ok: boolean }> {
   const res = await apiFetch(`/admin/orgs/${orgId}/invites/${inviteId}`, {
+    method: "DELETE",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
+}
+
+export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
+  const res = await apiFetch(`/admin/orgs/${orgId}/members`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? (data as OrgMember[]) : [];
+}
+
+export async function removeOrgMember(orgId: string, memberId: string): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/orgs/${orgId}/members/${memberId}`, {
     method: "DELETE",
   });
   const data = await handleJsonResponse(res);
