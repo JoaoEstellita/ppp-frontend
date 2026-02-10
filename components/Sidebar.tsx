@@ -21,6 +21,7 @@ export function Sidebar() {
     : [];
 
   const adminLinks = [
+    { href: "/admin/admins", label: "Admins" },
     { href: "/admin/sindicatos", label: "Sindicatos" },
     { href: "/admin/casos", label: "Casos" },
     { href: "/admin/suporte", label: "Suporte" },
@@ -54,4 +55,3 @@ export function Sidebar() {
     </aside>
   );
 }
-

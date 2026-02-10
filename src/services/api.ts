@@ -1027,6 +1027,12 @@ export type OrgMember = {
   is_platform_admin: boolean;
 };
 
+export type PlatformAdmin = {
+  user_id: string;
+  email: string | null;
+  created_at: string | null;
+};
+
 export async function createOrgInvite(
   orgId: string,
   email: string,
@@ -1095,6 +1101,29 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
 
 export async function removeOrgMember(orgId: string, memberId: string): Promise<{ ok: boolean }> {
   const res = await apiFetch(`/admin/orgs/${orgId}/members/${memberId}`, {
+    method: "DELETE",
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
+}
+
+export async function listPlatformAdmins(): Promise<PlatformAdmin[]> {
+  const res = await apiFetch("/admin/platform-admins");
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? (data as PlatformAdmin[]) : [];
+}
+
+export async function createPlatformAdmin(email: string): Promise<PlatformAdmin> {
+  const res = await apiFetch("/admin/platform-admins", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as PlatformAdmin;
+}
+
+export async function deletePlatformAdmin(userId: string): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/platform-admins/${userId}`, {
     method: "DELETE",
   });
   const data = await handleJsonResponse(res);
