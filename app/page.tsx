@@ -95,12 +95,15 @@ export default function LandingPage() {
             >
               Portal sindicato
             </button>
-            <Button
-              onClick={() => router.push("/login")}
-              className="hidden md:inline-flex bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
-            >
-              Entrar como sindicato
-            </Button>
+            <div className="hidden md:flex flex-col items-start gap-1">
+              <Button
+                onClick={() => router.push("/login")}
+                className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
+              >
+                Entrar como sindicato
+              </Button>
+              <span className="text-xs text-gray-500">Portal interno para gestão de casos.</span>
+            </div>
           </div>
         </div>
       </header>
@@ -169,22 +172,22 @@ export default function LandingPage() {
 
         <section id="como-funciona" className="max-w-6xl mx-auto px-6 py-14 space-y-8">
           <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Como funciona</h2>
-            <p className="text-gray-600">Três passos simples para obter um parecer técnico estruturado.</p>
+            <h2 className="text-3xl font-bold">Como validar seu PPP em 3 etapas</h2>
+            <p className="text-gray-600">Leva em média 3 a 5 minutos para enviar os dados e gerar o pagamento.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                title: "1) Envie o PPP",
-                text: "Upload do PPP em PDF (escaneado ou digital).",
+                title: "1) Envie o PDF do PPP",
+                text: "Formato PDF. Tamanho recomendado: até 5 MB.",
               },
               {
-                title: "2) Protocolo oficial",
-                text: "Aplicamos o protocolo baseado na IN 128/2022 e NRs.",
+                title: "2) Confirme e pague",
+                text: "Valor padrão R$ 87,90. Com código do sindicato válido: R$ 67,90.",
               },
               {
-                title: "3) Parecer técnico",
-                text: "Você recebe um parecer estruturado para revisão humana.",
+                title: "3) Acompanhe e baixe o resultado",
+                text: "Você acompanha o status e baixa o parecer quando concluir.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-lg shadow p-6 space-y-3">
@@ -193,6 +196,23 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              onClick={() => router.push("/ppp/novo")}
+              className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 text-base font-semibold"
+            >
+              Validar meu PPP
+            </Button>
+            <Button
+              onClick={() => scrollTo("como-funciona")}
+              className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            >
+              Ver como funciona
+            </Button>
+          </div>
+          <p className="text-center text-sm text-gray-600">
+            O código do caso também aparece no link de pagamento. Guarde esse código para retomar o acesso quando precisar.
+          </p>
         </section>
 
         <section className="bg-white border-t border-b py-14">
