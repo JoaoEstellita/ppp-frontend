@@ -193,10 +193,18 @@ export default function AdminCaseDetailPage() {
   };
 
   const handleSubmitForAnalysis = async () => {
+    const isFinalized = caseDetail?.case?.status === "done" || caseDetail?.case?.status === "done_warning";
+    if (isFinalized) {
+      const confirmed = window.confirm(
+        "Este caso já está concluído. Deseja revalidar no n8n como admin? O resultado anterior será substituído."
+      );
+      if (!confirmed) return;
+    }
+
     setActionLoading("submit");
     setFeedback(null);
     try {
-      const result = await adminSubmitCase(caseId);
+      const result = await adminSubmitCase(caseId, { forceReprocess: isFinalized });
       setFeedback({ type: "success", text: String(result?.message ?? "Enviado para análise!") });
       await loadCase();
       await loadCaseEvents();
@@ -616,13 +624,20 @@ export default function AdminCaseDetailPage() {
         <h3 className="text-sm font-semibold text-gray-600 mb-4">Ações Admin</h3>
         <div className="flex flex-wrap gap-3">
           {/* Enviar/Reenviar para análise (n8n) */}
-          {(caseData.status === "ready_to_process" || caseData.status === "error") && (
+          {(caseData.status === "ready_to_process" ||
+            caseData.status === "error" ||
+            caseData.status === "done" ||
+            caseData.status === "done_warning") && (
             <Button
               onClick={handleSubmitForAnalysis}
               disabled={actionLoading === "submit"}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {actionLoading === "submit" ? "Enviando..." : "Enviar para análise (N8N)"}
+              {actionLoading === "submit"
+                ? "Enviando..."
+                : (caseData.status === "done" || caseData.status === "done_warning")
+                  ? "Revalidar no N8N (Admin)"
+                  : "Enviar para análise (N8N)"}
             </Button>
           )}
 

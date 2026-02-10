@@ -1237,9 +1237,13 @@ export async function submitCase(orgSlug: string, caseId: string): Promise<Submi
 /**
  * Admin envia caso para anÃ¡lise (n8n)
  */
-export async function adminSubmitCase(caseId: string): Promise<SubmitResponse> {
+export async function adminSubmitCase(caseId: string, opts?: { forceReprocess?: boolean }): Promise<SubmitResponse> {
   const res = await apiFetch(`/admin/cases/${caseId}/submit`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      force_reprocess: opts?.forceReprocess === true,
+    }),
   });
   const data = await handleJsonResponse(res);
   return data as SubmitResponse;
