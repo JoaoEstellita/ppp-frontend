@@ -15,7 +15,7 @@ export default function LandingPage() {
   const BASE_PRICE = 87.9;
   const [simCode, setSimCode] = useState("");
   const [simPrice, setSimPrice] = useState(BASE_PRICE);
-  const [simMessage, setSimMessage] = useState("Sem codigo: R$ 87,90. Com codigo valido: R$ 67,90.");
+  const [simMessage, setSimMessage] = useState("Sem código: R$ 87,90. Com código válido: R$ 67,90.");
   const [simLoading, setSimLoading] = useState(false);
 
   const dashboardHref = isPlatformAdmin
@@ -34,7 +34,7 @@ export default function LandingPage() {
 
     if (!raw) {
       setSimPrice(BASE_PRICE);
-      setSimMessage("Sem codigo: R$ 87,90. Com codigo valido: R$ 67,90.");
+      setSimMessage("Sem código: R$ 87,90. Com código válido: R$ 67,90.");
       setSimLoading(false);
       return;
     }
@@ -46,14 +46,14 @@ export default function LandingPage() {
         if (result.valid) {
           setSimPrice(result.price);
           const orgName = result.org_name ? ` (${result.org_name})` : "";
-          setSimMessage(`Codigo aplicado${orgName}. Desconto liberado.`);
+          setSimMessage(`Código aplicado${orgName}. Desconto liberado.`);
         } else {
           setSimPrice(BASE_PRICE);
-          setSimMessage("Codigo nao encontrado. Preco sem desconto.");
+          setSimMessage("Código não encontrado. Preço sem desconto.");
         }
       } catch {
         setSimPrice(BASE_PRICE);
-        setSimMessage("Nao foi possivel validar agora. Voce pode tentar novamente.");
+        setSimMessage("Não foi possível validar agora. Você pode tentar novamente.");
       } finally {
         setSimLoading(false);
       }
@@ -79,7 +79,7 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="text-xl font-extrabold tracking-tight">Meu PPP</div>
-              <div className="text-xs text-gray-500">Meu Perfil Profissiografico Previdenciario</div>
+              <div className="text-xs text-gray-500">Meu Perfil Profissiográfico Previdenciário</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -109,13 +109,13 @@ export default function LandingPage() {
         <section className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
           <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
             <div className="space-y-6">
-              <p className="text-sm uppercase tracking-wide text-blue-100">Meu Perfil Profissiografico Previdenciario</p>
+              <p className="text-sm uppercase tracking-wide text-blue-100">Meu Perfil Profissiográfico Previdenciário</p>
               <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight">
-                Auditoria tecnica de PPP em minutos, nao em dias.
+                Auditoria técnica de PPP em minutos, não em dias.
               </h1>
               <p className="text-lg text-blue-100">
                 Ferramenta para advogados, peritos, empresas e trabalhadores conferirem PPP com base na
-                IN 128/2022 e nas NRs, gerando parecer tecnico pronto para conferencia humana.
+                IN 128/2022 e nas NRs, gerando parecer técnico pronto para conferência humana.
                 Ideal para quem precisa de atestado profissional do PPP.
               </p>
               <div className="flex flex-wrap gap-3">
@@ -133,22 +133,22 @@ export default function LandingPage() {
                 </Button>
               </div>
 
-              <div className="max-w-3xl rounded-lg border border-white/30 bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-sm font-semibold text-white">Simule seu preco com codigo do sindicato</p>
+              <div className="max-w-3xl rounded-lg bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-sm font-semibold text-white">Simule seu preço com código do sindicato</p>
                 <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center">
                   <input
                     type="text"
                     value={simCode}
                     onChange={(e) => setSimCode(e.target.value.toUpperCase())}
-                    placeholder="Digite o codigo (opcional)"
+                    placeholder="Digite o código (opcional)"
                     className="w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-500 md:max-w-sm"
                   />
                   <div className="rounded-md border border-white/40 bg-white/10 px-3 py-2 text-sm text-white">
-                    Preco final: <span className="font-bold">{formatCurrency(simPrice)}</span>
+                    Preço final: <span className="font-bold">{formatCurrency(simPrice)}</span>
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-blue-100">
-                  {simLoading ? "Validando codigo..." : simMessage}
+                  {simLoading ? "Validando código..." : simMessage}
                 </p>
                 <p className="mt-1 text-xs text-blue-100">
                   Leva cerca de 3 minutos para criar o caso e gerar o link de pagamento.
@@ -157,7 +157,7 @@ export default function LandingPage() {
 
               {user && (
                 <div className="text-xs text-blue-100">
-                  Voce ja esta logado.{" "}
+                  Você já está logado.{" "}
                   <button className="underline" onClick={() => router.push(dashboardHref)}>
                     Ir para o painel
                   </button>
@@ -170,7 +170,7 @@ export default function LandingPage() {
         <section id="como-funciona" className="max-w-6xl mx-auto px-6 py-14 space-y-8">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-bold">Como funciona</h2>
-            <p className="text-gray-600">Tres passos simples para obter um parecer tecnico estruturado.</p>
+            <p className="text-gray-600">Três passos simples para obter um parecer técnico estruturado.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
@@ -183,8 +183,8 @@ export default function LandingPage() {
                 text: "Aplicamos o protocolo baseado na IN 128/2022 e NRs.",
               },
               {
-                title: "3) Parecer tecnico",
-                text: "Voce recebe um parecer estruturado para revisao humana.",
+                title: "3) Parecer técnico",
+                text: "Você recebe um parecer estruturado para revisão humana.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-lg shadow p-6 space-y-3">
@@ -198,16 +198,16 @@ export default function LandingPage() {
         <section className="bg-white border-t border-b py-14">
           <div className="max-w-6xl mx-auto px-6 space-y-6">
             <div className="text-center space-y-3">
-              <h2 className="text-3xl font-bold">Para quem e</h2>
+              <h2 className="text-3xl font-bold">Para quem é</h2>
               <p className="text-gray-600">
-                A plataforma ajuda equipes tecnicas, juridicas e trabalhadores que precisam de atestado profissional do PPP.
+                A plataforma ajuda equipes técnicas, jurídicas e trabalhadores que precisam de atestado profissional do PPP.
               </p>
             </div>
             <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 "Trabalhadores",
-                "Advogados previdenciarios",
-                "Escritorios de contabilidade",
+                "Advogados previdenciários",
+                "Escritórios de contabilidade",
                 "Departamentos de RH/SSO",
                 "Peritos e consultores",
               ].map((label) => (
@@ -221,19 +221,19 @@ export default function LandingPage() {
 
         <section className="max-w-6xl mx-auto px-6 py-14 grid lg:grid-cols-2 gap-10 items-center">
           <div className="space-y-3">
-            <h2 className="text-3xl font-bold">Beneficios</h2>
+            <h2 className="text-3xl font-bold">Benefícios</h2>
             <ul className="space-y-2 text-gray-700 list-disc list-inside">
               <li>Reduz o tempo de auditoria de PPP.</li>
-              <li>Padroniza pareceres tecnicos.</li>
-              <li>Identifica PPP invalido antes do requerimento ou acao.</li>
-              <li>Gera documentacao tecnica mais robusta.</li>
+              <li>Padroniza pareceres técnicos.</li>
+              <li>Identifica PPP inválido antes do requerimento ou ação.</li>
+              <li>Gera documentação técnica mais robusta.</li>
               <li>Ajuda trabalhadores a verificar a validade do PPP para atestado profissional.</li>
             </ul>
           </div>
           <div className="bg-white shadow rounded-lg p-6 space-y-4">
             <h3 className="text-xl font-semibold">Pronto para usar</h3>
             <p className="text-gray-600">
-              Escolha o acesso ideal para voce e acompanhe os PPPs gerados por caso com pagamento confirmado.
+              Escolha o acesso ideal para você e acompanhe os PPPs gerados por caso com pagamento confirmado.
             </p>
             <div className="flex gap-3">
               <Button
@@ -242,12 +242,6 @@ export default function LandingPage() {
               >
                 Validar meu PPP
               </Button>
-              <Button
-                onClick={() => router.push("/login")}
-                className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold opacity-90"
-              >
-                Entrar como sindicato
-              </Button>
             </div>
           </div>
         </section>
@@ -255,7 +249,7 @@ export default function LandingPage() {
 
       <footer className="border-t bg-white">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-wrap justify-between text-sm text-gray-600">
-          <span>PPP Auditor - Parecer tecnico simplificado</span>
+          <span>PPP Auditor - Parecer técnico simplificado</span>
           <div className="flex gap-4">
             <button onClick={() => router.push("/ppp")} className="hover:text-gray-900">
               Validar meu PPP
