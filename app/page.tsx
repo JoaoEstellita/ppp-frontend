@@ -10,7 +10,7 @@ import { validateUnionCodePublic } from "@/src/services/api";
 export default function LandingPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { isPlatformAdmin, org } = useOrgAccess();
+  const { loading: orgAccessLoading, isPlatformAdmin, org } = useOrgAccess();
 
   const BASE_PRICE = 87.9;
   const [simCode, setSimCode] = useState("");
@@ -22,7 +22,12 @@ export default function LandingPage() {
     ? "/admin"
     : org?.slug
       ? `/s/${org.slug}/dashboard`
-      : "/login";
+      : "/access-pending";
+
+  const goToSindicatoPortal = () => {
+    if (orgAccessLoading) return;
+    router.push(dashboardHref);
+  };
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -93,17 +98,19 @@ export default function LandingPage() {
               <span className="text-xs text-gray-500">Crie seu caso e valide o PPP por aqui.</span>
             </div>
             <button
-              onClick={() => router.push(dashboardHref)}
+              onClick={goToSindicatoPortal}
+              disabled={orgAccessLoading}
               className="md:hidden text-sm font-medium text-blue-700 underline"
             >
-              Portal sindicato
+              {orgAccessLoading ? "Carregando acesso..." : "Portal sindicato"}
             </button>
             <div className="hidden md:flex flex-col items-start gap-1">
               <Button
-                onClick={() => router.push(dashboardHref)}
+                onClick={goToSindicatoPortal}
+                disabled={orgAccessLoading}
                 className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
               >
-                Entrar como sindicato
+                {orgAccessLoading ? "Carregando acesso..." : "Entrar como sindicato"}
               </Button>
               <span className="text-xs text-gray-500">Portal interno para gestão de casos.</span>
             </div>
@@ -164,7 +171,7 @@ export default function LandingPage() {
               {user && (
                 <div className="text-xs text-blue-100">
                   Você já está logado.{" "}
-                  <button className="underline" onClick={() => router.push(dashboardHref)}>
+                  <button className="underline" onClick={goToSindicatoPortal} disabled={orgAccessLoading}>
                     Ir para o painel
                   </button>
                 </div>
