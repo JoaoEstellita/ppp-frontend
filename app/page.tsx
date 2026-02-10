@@ -1,41 +1,103 @@
 ﻿"use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 import { Button } from "@/components/Button";
+import { validateUnionCodePublic } from "@/src/services/api";
 
 export default function LandingPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { isPlatformAdmin, org } = useOrgAccess();
 
+  const BASE_PRICE = 87.9;
+  const [simCode, setSimCode] = useState("");
+  const [simPrice, setSimPrice] = useState(BASE_PRICE);
+  const [simMessage, setSimMessage] = useState("Sem codigo: R$ 87,90. Com codigo valido: R$ 67,90.");
+  const [simLoading, setSimLoading] = useState(false);
+
   const dashboardHref = isPlatformAdmin
     ? "/admin"
     : org?.slug
-    ? `/s/${org.slug}/dashboard`
-    : "/login";
+      ? `/s/${org.slug}/dashboard`
+      : "/login";
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
+  useEffect(() => {
+    const raw = simCode.trim();
+
+    if (!raw) {
+      setSimPrice(BASE_PRICE);
+      setSimMessage("Sem codigo: R$ 87,90. Com codigo valido: R$ 67,90.");
+      setSimLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSimLoading(true);
+      try {
+        const result = await validateUnionCodePublic(raw);
+        if (result.valid) {
+          setSimPrice(result.price);
+          const orgName = result.org_name ? ` (${result.org_name})` : "";
+          setSimMessage(`Codigo aplicado${orgName}. Desconto liberado.`);
+        } else {
+          setSimPrice(BASE_PRICE);
+          setSimMessage("Codigo nao encontrado. Preco sem desconto.");
+        }
+      } catch {
+        setSimPrice(BASE_PRICE);
+        setSimMessage("Nao foi possivel validar agora. Voce pode tentar novamente.");
+      } finally {
+        setSimLoading(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [simCode]);
+
+  const formatCurrency = (value: number) =>
+    value.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+    });
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="text-xl font-bold">PPP Auditor</div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-600 text-white flex items-center justify-center font-bold">
+              MP
+            </div>
+            <div>
+              <div className="text-xl font-extrabold tracking-tight">Meu PPP</div>
+              <div className="text-xs text-gray-500">Meu Perfil Profissiografico Previdenciario</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
             <Button
               onClick={() => router.push("/ppp")}
               className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold min-w-[250px]"
             >
               Entrar como Trabalhador
             </Button>
+            <button
+              onClick={() => router.push("/login")}
+              className="md:hidden text-sm font-medium text-blue-700 underline"
+            >
+              Portal sindicato
+            </button>
             <Button
               onClick={() => router.push("/login")}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
+              className="hidden md:inline-flex bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold min-w-[190px]"
             >
               Entrar como sindicato
             </Button>
@@ -47,7 +109,7 @@ export default function LandingPage() {
         <section className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
           <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
             <div className="space-y-6">
-              <p className="text-sm uppercase tracking-wide text-blue-100">Plataforma de auditoria</p>
+              <p className="text-sm uppercase tracking-wide text-blue-100">Meu Perfil Profissiografico Previdenciario</p>
               <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight">
                 Auditoria tecnica de PPP em minutos, nao em dias.
               </h1>
@@ -70,12 +132,29 @@ export default function LandingPage() {
                   Ver como funciona
                 </Button>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-blue-100">
-                <span className="inline-flex items-center rounded-full px-3 py-1 font-medium">
-                  Desconto com codigo do sindicato
-                </span>
-                <span>Leva cerca de 3 minutos para criar o caso e gerar o link de pagamento.</span>
+
+              <div className="max-w-3xl rounded-lg border border-white/30 bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-sm font-semibold text-white">Simule seu preco com codigo do sindicato</p>
+                <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center">
+                  <input
+                    type="text"
+                    value={simCode}
+                    onChange={(e) => setSimCode(e.target.value.toUpperCase())}
+                    placeholder="Digite o codigo (opcional)"
+                    className="w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-500 md:max-w-sm"
+                  />
+                  <div className="rounded-md border border-white/40 bg-white/10 px-3 py-2 text-sm text-white">
+                    Preco final: <span className="font-bold">{formatCurrency(simPrice)}</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-blue-100">
+                  {simLoading ? "Validando codigo..." : simMessage}
+                </p>
+                <p className="mt-1 text-xs text-blue-100">
+                  Leva cerca de 3 minutos para criar o caso e gerar o link de pagamento.
+                </p>
               </div>
+
               {user && (
                 <div className="text-xs text-blue-100">
                   Voce ja esta logado.{" "}
@@ -190,5 +269,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-
