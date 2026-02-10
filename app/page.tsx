@@ -53,7 +53,7 @@ export default function LandingPage() {
         }
       } catch {
         setSimPrice(BASE_PRICE);
-        setSimMessage("Não foi possível validar agora. Você pode tentar novamente.");
+        setSimMessage("Não foi possível validar este código agora. Solicite o código oficial ao seu sindicato e tente novamente.");
       } finally {
         setSimLoading(false);
       }
@@ -266,4 +266,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
 
