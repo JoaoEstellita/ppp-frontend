@@ -57,14 +57,11 @@ export default function LandingPage() {
                 Ideal para quem precisa de atestado profissional do PPP.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button onClick={() => router.push("/ppp/novo")} className="bg-blue-700 hover:bg-blue-800 text-white">
-                  Validar meu PPP
-                </Button>
                 <Button
-                  onClick={() => router.push("/login")}
-                  className="border border-blue-200 bg-white/10 text-blue-50 hover:bg-white/20"
+                  onClick={() => router.push("/ppp/novo")}
+                  className="border border-white bg-blue-700 hover:bg-blue-800 text-white"
                 >
-                  Entrar como sindicato
+                  Validar meu PPP
                 </Button>
                 <Button
                   onClick={() => scrollTo("como-funciona")}
@@ -74,7 +71,7 @@ export default function LandingPage() {
                 </Button>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-blue-100">
-                <span className="inline-flex items-center rounded-full border border-blue-200 px-3 py-1 font-medium">
+                <span className="inline-flex items-center rounded-full px-3 py-1 font-medium">
                   Desconto com codigo do sindicato
                 </span>
                 <span>Leva cerca de 3 minutos para criar o caso e gerar o link de pagamento.</span>
