@@ -5,6 +5,11 @@ import { AppProviders } from "@/components/AppProviders";
 export const metadata: Metadata = {
   title: "Auditoria de PPP",
   description: "Sistema de Auditoria de Perfil Profissiografico Previdenciario",
+  icons: {
+    icon: "/assets/meupppicone.png",
+    shortcut: "/assets/meupppicone.png",
+    apple: "/assets/meupppicone.png",
+  },
 };
 
 export default function RootLayout({
