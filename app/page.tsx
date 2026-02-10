@@ -27,12 +27,15 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="text-xl font-bold">PPP Auditor</div>
           <div className="flex gap-3">
-            <Button onClick={() => router.push("/ppp")} className="bg-blue-700 hover:bg-blue-800 text-white">
+            <Button
+              onClick={() => router.push("/ppp")}
+              className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 text-base font-semibold"
+            >
               Entrar como Trabalhador
             </Button>
             <Button
               onClick={() => router.push("/login")}
-              className="border border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
+              className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 text-sm font-semibold"
             >
               Entrar como sindicato
             </Button>
@@ -69,6 +72,12 @@ export default function LandingPage() {
                 >
                   Ver como funciona
                 </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-blue-100">
+                <span className="inline-flex items-center rounded-full border border-blue-200 px-3 py-1 font-medium">
+                  Desconto com codigo do sindicato
+                </span>
+                <span>Leva cerca de 3 minutos para criar o caso e gerar o link de pagamento.</span>
               </div>
               {user && (
                 <div className="text-xs text-blue-100">
