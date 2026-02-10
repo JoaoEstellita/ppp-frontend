@@ -173,21 +173,21 @@ export default function LandingPage() {
         <section id="como-funciona" className="max-w-6xl mx-auto px-6 py-14 space-y-8">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-bold">Como validar seu PPP em 3 etapas</h2>
-            <p className="text-gray-600">Leva em média 3 a 5 minutos para enviar os dados e gerar o pagamento.</p>
+            <p className="text-gray-600">Você envia o documento, confirma o pagamento e acompanha tudo no mesmo lugar.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
                 title: "1) Envie o PDF do PPP",
-                text: "Formato PDF. Tamanho recomendado: até 5 MB.",
+                text: "Envie o documento em PDF. Se estiver escaneado, prefira arquivo com boa leitura e até 5 MB.",
               },
               {
                 title: "2) Confirme e pague",
-                text: "Valor padrão R$ 87,90. Com código do sindicato válido: R$ 67,90.",
+                text: "Após criar o caso, você gera o link de pagamento. Com código do sindicato, o desconto é aplicado automaticamente.",
               },
               {
                 title: "3) Acompanhe e baixe o resultado",
-                text: "Você acompanha o status e baixa o parecer quando concluir.",
+                text: "Depois do pagamento, você acompanha cada etapa e baixa o parecer final quando estiver disponível.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-lg shadow p-6 space-y-3">
@@ -196,23 +196,6 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button
-              onClick={() => router.push("/ppp/novo")}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 text-base font-semibold"
-            >
-              Validar meu PPP
-            </Button>
-            <Button
-              onClick={() => scrollTo("como-funciona")}
-              className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            >
-              Ver como funciona
-            </Button>
-          </div>
-          <p className="text-center text-sm text-gray-600">
-            O código do caso também aparece no link de pagamento. Guarde esse código para retomar o acesso quando precisar.
-          </p>
         </section>
 
         <section className="bg-white border-t border-b py-14">
@@ -283,3 +266,4 @@ export default function LandingPage() {
     </div>
   );
 }
+
