@@ -20,8 +20,12 @@ const craEnv =
     : undefined;
 
 // Fallback padrao agora e o backend em producao, NAO mais localhost
-export const API_BASE_URL: string =
-  nextEnv || viteEnv || craEnv || "https://ppp-backend-sjjc.onrender.com";
+const rawApiBaseUrl = nextEnv || viteEnv || craEnv || "https://ppp-backend-sjjc.onrender.com";
+// Guardrail para typo comum de hostname em ambiente.
+export const API_BASE_URL: string = rawApiBaseUrl.replace(
+  "ppp-backend-sjjic.onrender.com",
+  "ppp-backend-sjjc.onrender.com"
+);
 
 // Tipos basicos usados pelo frontend
 
