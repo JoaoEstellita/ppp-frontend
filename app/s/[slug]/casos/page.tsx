@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getCases, FrontendCase, ApiError, CaseStatus } from "@/src/services/api";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
@@ -50,6 +50,7 @@ function formatDate(iso: string | null | undefined): string {
 export default function OrgCasesPage() {
   const PAGE_SIZE = 12;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams();
   const slug =
     typeof params?.slug === "string"
@@ -65,6 +66,25 @@ export default function OrgCasesPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const statusFromUrl = searchParams.get("status");
+    if (
+      statusFromUrl &&
+      [
+        "awaiting_payment",
+        "awaiting_pdf",
+        "ready_to_process",
+        "processing",
+        "paid_processing",
+        "done",
+        "pending_info",
+        "error",
+      ].includes(statusFromUrl)
+    ) {
+      setStatusFilter(statusFromUrl as CaseStatus);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!slug) return;
@@ -161,6 +181,7 @@ export default function OrgCasesPage() {
             <option value="all">Todos os status</option>
             <option value="awaiting_payment">Aguardando pagamento</option>
             <option value="awaiting_pdf">Aguardando PDF</option>
+            <option value="ready_to_process">Pronto para envio</option>
             <option value="processing">Processando</option>
             <option value="paid_processing">Pago / Processando</option>
             <option value="done">Concluído</option>
