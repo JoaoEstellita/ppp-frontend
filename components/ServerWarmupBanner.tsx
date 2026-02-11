@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_HEALTH_URL } from "@/src/services/api";
 
-const HEALTH_URL = "https://ppp-backend-sjjc.onrender.com/health";
 const SHOW_MESSAGE_DELAY_MS = 3000;
 
 export function ServerWarmupBanner() {
@@ -15,7 +15,7 @@ export function ServerWarmupBanner() {
 
     const wakeBackend = async () => {
       try {
-        const res = await fetch(HEALTH_URL, {
+        const res = await fetch(API_HEALTH_URL, {
           signal: controller.signal,
           cache: "no-store",
         });
@@ -23,9 +23,9 @@ export function ServerWarmupBanner() {
           throw new Error(`Status ${res.status}`);
         }
         setErrorMessage(null);
-      } catch (err) {
+      } catch {
         if (controller.signal.aborted) return;
-        setErrorMessage("Não foi possível conectar ao servidor. Tente novamente em alguns instantes.");
+        setErrorMessage("Nao foi possivel conectar ao servidor. Tente novamente em alguns instantes.");
       } finally {
         clearTimeout(timer);
         setShowLoading(false);
@@ -51,9 +51,7 @@ export function ServerWarmupBanner() {
     <div className="fixed inset-x-0 top-0 z-50 flex justify-center">
       <div
         className={`m-3 rounded-md px-4 py-2 text-sm shadow ${
-          isError
-            ? "bg-red-600 text-white"
-            : "bg-sky-600 text-white"
+          isError ? "bg-red-600 text-white" : "bg-sky-600 text-white"
         }`}
       >
         {message}

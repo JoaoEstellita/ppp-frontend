@@ -131,6 +131,24 @@ function paymentStatusLabel(status?: string | null) {
   }
 }
 
+function isPaymentSettled(
+  caseStatus?: string | null,
+  paymentStatus?: string | null,
+  manualOverridePaid?: boolean
+): boolean {
+  if (paymentStatus === "approved") return true;
+  if (manualOverridePaid) return true;
+  return (
+    caseStatus === "ready_to_process" ||
+    caseStatus === "processing" ||
+    caseStatus === "paid_processing" ||
+    caseStatus === "done" ||
+    caseStatus === "done_warning" ||
+    caseStatus === "pending_info" ||
+    caseStatus === "error"
+  );
+}
+
 type TimelineStep = {
   id: string;
   title: string;
@@ -223,6 +241,8 @@ export default function PublicCaseStatusPage() {
 
   const status = caseDetail?.case?.status as string | undefined;
   const payment = caseDetail?.payment || null;
+  const manualOverridePaid = Boolean(caseDetail?.case?.manual_override_paid);
+  const paymentSettled = isPaymentSettled(status, payment?.status, manualOverridePaid);
   const lastErrorCode = caseDetail?.case?.last_error_code ?? null;
   const lastErrorMessage = caseDetail?.case?.last_error_message ?? null;
   const lastErrorStep = caseDetail?.case?.last_error_step ?? null;
@@ -251,7 +271,7 @@ export default function PublicCaseStatusPage() {
   );
 
   const timeline = useMemo<TimelineStep[]>(() => {
-    const paymentDone = payment?.status === "approved";
+    const paymentDone = paymentSettled;
     const processing = status === "processing" || status === "paid_processing";
     const done = status === "done" || status === "done_warning";
     const errorStatus = status === "error";
@@ -261,7 +281,7 @@ export default function PublicCaseStatusPage() {
       { id: "processing", title: "Processamento", done: done, active: processing || errorStatus },
       { id: "result", title: "Resultado", done: done && Boolean(resultDoc), active: done && Boolean(resultDoc) },
     ];
-  }, [payment?.status, resultDoc, status]);
+  }, [paymentSettled, resultDoc, status]);
 
   async function handleGeneratePayment() {
     if (!caseId) return;
@@ -667,7 +687,11 @@ export default function PublicCaseStatusPage() {
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <div className="flex items-center justify-between">
                   <span>Status</span>
-                  <span className="font-medium text-slate-900">{paymentStatusLabel(payment?.status)}</span>
+                  <span className="font-medium text-slate-900">
+                    {paymentSettled
+                      ? "Confirmado"
+                      : paymentStatusLabel(payment?.status)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Valor</span>
@@ -682,7 +706,11 @@ export default function PublicCaseStatusPage() {
                 )}
               </div>
 
-              {paymentUrl ? (
+              {paymentSettled ? (
+                <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  Pagamento confirmado. Fluxo liberado para processamento.
+                </div>
+              ) : paymentUrl ? (
                 <a
                   href={paymentUrl}
                   className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
@@ -708,17 +736,17 @@ export default function PublicCaseStatusPage() {
               <p className="mt-2 break-all text-xs text-slate-500">{caseDetail.case.id}</p>
             </div>
 
-            {searchParams?.get("payment") === "success" && (
+            {!paymentSettled && searchParams?.get("payment") === "success" && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
                 Pagamento confirmado. O processamento foi iniciado.
               </div>
             )}
-            {searchParams?.get("payment") === "failure" && (
+            {!paymentSettled && searchParams?.get("payment") === "failure" && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
                 Pagamento não concluído. Gere um novo link e tente novamente.
               </div>
             )}
-            {searchParams?.get("payment") === "pending" && (
+            {!paymentSettled && searchParams?.get("payment") === "pending" && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                 Pagamento pendente. Aguarde a confirmação ou tente novamente mais tarde.
               </div>

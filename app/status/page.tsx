@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { API_BASE_URL, validateUnionCodePublic } from "@/src/services/api";
+import { API_HEALTH_URL, validateUnionCodePublic } from "@/src/services/api";
 
 type ServiceState = "operational" | "degraded" | "down" | "unknown";
 
@@ -34,9 +34,9 @@ export default function StatusPage() {
   async function runChecks() {
     setLoading(true);
     try {
-      const apiResponse = await fetch(API_BASE_URL, { method: "GET" });
-      setApiState(apiResponse.ok || apiResponse.status === 404 ? "operational" : "degraded");
-      setApiDetail(`Backend respondeu com status HTTP ${apiResponse.status}.`);
+      const apiResponse = await fetch(API_HEALTH_URL, { method: "GET" });
+      setApiState(apiResponse.ok ? "operational" : "degraded");
+      setApiDetail(`Backend respondeu /health com status HTTP ${apiResponse.status}.`);
     } catch (err) {
       setApiState("down");
       setApiDetail("Nao foi possivel conectar ao backend da plataforma.");

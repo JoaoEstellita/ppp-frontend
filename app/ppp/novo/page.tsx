@@ -28,11 +28,11 @@ function digitsOnly(value: string) {
 function formatCpf(value: string) {
   const digits = digitsOnly(value).slice(0, 11);
   if (!digits) return "";
-  const part1 = digits.slice(0, 3);
-  const part2 = digits.slice(3, 6);
-  const part3 = digits.slice(6, 9);
-  const part4 = digits.slice(9, 11);
-  return `${part1}.${part2}.${part3}-${part4}`.replace(/[-.]$/, "");
+  const p1 = digits.slice(0, 3);
+  const p2 = digits.slice(3, 6);
+  const p3 = digits.slice(6, 9);
+  const p4 = digits.slice(9, 11);
+  return `${p1}.${p2}.${p3}-${p4}`.replace(/[-.]$/, "");
 }
 
 function formatCnpj(value: string) {
@@ -51,6 +51,21 @@ function isValidEmail(value: string) {
 }
 
 type CodeState = "idle" | "validating" | "valid" | "invalid";
+
+function mapCreateCaseErrorMessage(err: ApiError): string | null {
+  const detailsMessage =
+    typeof err.details === "object" && err.details !== null
+      ? (err.details as any).message || (err.details as any).error
+      : null;
+  const rawMessage = String(detailsMessage || err.message || "").toLowerCase();
+  const rawCode = String(err.code || "").toLowerCase();
+
+  if (rawCode === "platform_org_not_found" || rawMessage.includes("platform_org_not_found")) {
+    return "Configuracao interna da plataforma ausente. Avise o suporte para regularizar o cadastro da organizacao e tente novamente.";
+  }
+
+  return detailsMessage || err.message || null;
+}
 
 export default function PublicCaseNewPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -74,6 +89,27 @@ export default function PublicCaseNewPage() {
   const finalPrice = normalizedCode ? DISCOUNT_PRICE : BASE_PRICE;
   const discountAmount = BASE_PRICE - finalPrice;
 
+  const workerNameValid = workerName.trim().length > 0;
+  const workerCpfValid = digitsOnly(workerCPF).length === 11;
+  const workerEmailValid = isValidEmail(workerEmail);
+  const companyNameValid = companyName.trim().length > 0;
+  const companyCnpjValid = digitsOnly(companyCNPJ).length === 14;
+  const hasFile = Boolean(selectedFile);
+  const fileWithinLimit = !selectedFile || selectedFile.size <= MAX_PDF_MB * 1024 * 1024;
+  const codeTyped = unionCodeInput.trim().length > 0;
+  const codeReady = !codeTyped || Boolean(normalizedCode);
+
+  const canContinue =
+    workerNameValid &&
+    workerCpfValid &&
+    workerEmailValid &&
+    companyNameValid &&
+    companyCnpjValid &&
+    hasFile &&
+    fileWithinLimit &&
+    codeReady &&
+    !submitting;
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedCaseId = window.localStorage.getItem("ppp:last_case_id");
@@ -84,7 +120,6 @@ export default function PublicCaseNewPage() {
 
   useEffect(() => {
     const hasData = Boolean(workerName || workerCPF || workerEmail || companyName || companyCNPJ);
-    const hasFile = Boolean(selectedFile);
     if (!hasData) {
       setCurrentStep(1);
       return;
@@ -94,7 +129,7 @@ export default function PublicCaseNewPage() {
       return;
     }
     setCurrentStep(3);
-  }, [workerName, workerCPF, workerEmail, companyName, companyCNPJ, selectedFile]);
+  }, [workerName, workerCPF, workerEmail, companyName, companyCNPJ, hasFile]);
 
   useEffect(() => {
     if (!normalizedCode) return;
@@ -102,7 +137,7 @@ export default function PublicCaseNewPage() {
     if (normalizedInput !== normalizedCode) {
       setNormalizedCode(null);
       setCodeState("idle");
-      setCodeFeedback("Código alterado. Clique em Aplicar para validar novamente.");
+      setCodeFeedback("Codigo alterado. Clique em Aplicar para validar novamente.");
     }
   }, [unionCodeInput, normalizedCode]);
 
@@ -124,27 +159,27 @@ export default function PublicCaseNewPage() {
       if (result.valid) {
         setNormalizedCode(result.normalized_code || rawCode.toUpperCase());
         setCodeState("valid");
-        setCodeFeedback("Código aplicado com sucesso.");
+        setCodeFeedback("Codigo aplicado com sucesso.");
       } else {
         setNormalizedCode(null);
         setCodeState("invalid");
-        setCodeFeedback("Código inválido ou expirado.");
+        setCodeFeedback("Codigo invalido ou expirado.");
       }
     } catch (err) {
       setNormalizedCode(null);
       setCodeState("invalid");
       if (err instanceof ApiError) {
         if (err.status === 404) {
-          setCodeFeedback("Código inválido ou expirado.");
+          setCodeFeedback("Codigo invalido ou expirado.");
         } else if (err.status === 400) {
-          setCodeFeedback("Formato de código inválido.");
+          setCodeFeedback("Formato de codigo invalido.");
         } else if (err.status === 429) {
           setCodeFeedback("Muitas tentativas. Aguarde um minuto.");
         } else {
-          setCodeFeedback("Não foi possível validar este código agora. Solicite o código oficial ao seu sindicato e tente novamente.");
+          setCodeFeedback("Nao foi possivel validar este codigo agora.");
         }
       } else {
-        setCodeFeedback("Não foi possível validar este código agora. Solicite o código oficial ao seu sindicato e tente novamente.");
+        setCodeFeedback("Nao foi possivel validar este codigo agora.");
       }
     }
   }
@@ -160,11 +195,11 @@ export default function PublicCaseNewPage() {
       return;
     }
     if (cpfDigits.length !== 11) {
-      setError("Informe um CPF válido com 11 dígitos.");
+      setError("Informe um CPF valido com 11 digitos.");
       return;
     }
     if (!isValidEmail(workerEmail)) {
-      setError("Informe um email válido.");
+      setError("Informe um email valido.");
       return;
     }
     if (!trimmedCompanyName) {
@@ -172,7 +207,7 @@ export default function PublicCaseNewPage() {
       return;
     }
     if (cnpjDigits.length !== 14) {
-      setError("Informe um CNPJ válido com 14 dígitos.");
+      setError("Informe um CNPJ valido com 14 digitos.");
       return;
     }
     if (!selectedFile) {
@@ -180,7 +215,7 @@ export default function PublicCaseNewPage() {
       return;
     }
     if (selectedFile.size > MAX_PDF_MB * 1024 * 1024) {
-      setError(`Arquivo muito grande. Envie um PDF de até ${MAX_PDF_MB}MB.`);
+      setError(`Arquivo muito grande. Envie um PDF de ate ${MAX_PDF_MB}MB.`);
       return;
     }
 
@@ -212,28 +247,24 @@ export default function PublicCaseNewPage() {
         return;
       }
 
-      setError("Caso criado, mas não foi possível abrir o pagamento automaticamente.");
+      setError("Caso criado, mas nao foi possivel abrir o pagamento automaticamente.");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 413) {
-          setError(`Arquivo muito grande. Envie um PDF de até ${MAX_PDF_MB}MB.`);
+          setError(`Arquivo muito grande. Envie um PDF de ate ${MAX_PDF_MB}MB.`);
         } else if (err.code === "worker_cpf_conflict") {
-          setError("CPF já cadastrado com outro nome nesta organização.");
+          setError("CPF ja cadastrado com outro nome nesta organizacao.");
         } else if (err.status === 409) {
-          setError("Pagamento já iniciado para este caso.");
+          setError("Pagamento ja iniciado para este caso.");
         } else if (err.code === "invalid_union_code") {
-          setError("Código do sindicato inválido.");
+          setError("Codigo do sindicato invalido.");
         } else if (err.code === "invalid_email") {
-          setError("Email inválido.");
+          setError("Email invalido.");
         } else {
-          const detailsMessage =
-            typeof err.details === "object" && err.details !== null
-              ? (err.details as any).message || (err.details as any).error
-              : null;
-          setError(detailsMessage || err.message || "Não foi possível concluir o envio.");
+          setError(mapCreateCaseErrorMessage(err) || "Nao foi possivel concluir o envio.");
         }
       } else {
-        setError("Não foi possível concluir o envio.");
+        setError("Nao foi possivel concluir o envio.");
       }
     } finally {
       window.clearTimeout(timer);
@@ -246,13 +277,11 @@ export default function PublicCaseNewPage() {
       <section className="mx-auto max-w-6xl px-6 py-8 sm:py-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold text-slate-900">Análise do PPP</h1>
+            <h1 className="text-3xl font-semibold text-slate-900">Analise do PPP</h1>
             <p className="mt-2 text-sm text-slate-600">
               Preencha os dados como constam no documento, envie o PDF e siga para o pagamento.
             </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Se houver divergência, você poderá corrigir os dados depois.
-            </p>
+            <p className="mt-1 text-xs text-slate-500">Se houver divergencia, voce podera corrigir os dados depois.</p>
           </div>
           <div className="flex gap-2">
             <Link href="/ppp">
@@ -270,7 +299,7 @@ export default function PublicCaseNewPage() {
           {[
             { id: 1, title: "Dados" },
             { id: 2, title: "Documento" },
-            { id: 3, title: "Preço" },
+            { id: 3, title: "Preco" },
             { id: 4, title: "Pagamento" },
           ].map((step) => {
             const isActive = currentStep === step.id;
@@ -313,7 +342,7 @@ export default function PublicCaseNewPage() {
                     onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
-                  <span className="mt-1 block text-[11px] text-slate-500">Use apenas números.</span>
+                  <span className="mt-1 block text-[11px] text-slate-500">Use apenas numeros.</span>
                 </label>
                 <label className="text-xs text-slate-600">
                   Email para receber o link *
@@ -340,7 +369,7 @@ export default function PublicCaseNewPage() {
                     onChange={(event) => setCompanyCNPJ(digitsOnly(event.target.value))}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
-                  <span className="mt-1 block text-[11px] text-slate-500">Use apenas números.</span>
+                  <span className="mt-1 block text-[11px] text-slate-500">Use apenas numeros.</span>
                 </label>
               </div>
             </div>
@@ -368,14 +397,14 @@ export default function PublicCaseNewPage() {
                   {selectedFile ? selectedFile.name : "Nenhum arquivo escolhido"}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-slate-500">Tamanho recomendado: até {MAX_PDF_MB}MB.</p>
+              <p className="mt-2 text-xs text-slate-500">Tamanho recomendado: ate {MAX_PDF_MB}MB.</p>
             </div>
+          </div>
 
+          <aside className="space-y-4 lg:sticky lg:top-6 h-fit">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold text-slate-900">Código do sindicato (opcional)</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Se você recebeu um código, aplique para liberar desconto.
-              </p>
+              <h3 className="text-sm font-semibold text-slate-900">Codigo do sindicato (opcional)</h3>
+              <p className="mt-1 text-sm text-slate-600">Se voce recebeu um codigo, aplique para liberar desconto.</p>
               <div className="mt-4 flex gap-2">
                 <input
                   value={unionCodeInput}
@@ -392,23 +421,17 @@ export default function PublicCaseNewPage() {
                 </Button>
               </div>
               {codeFeedback && (
-                <p
-                  className={`mt-2 text-xs ${
-                    codeState === "valid" ? "text-emerald-700" : "text-red-600"
-                  }`}
-                >
+                <p className={`mt-2 text-xs ${codeState === "valid" ? "text-emerald-700" : "text-red-600"}`}>
                   {codeFeedback}
                 </p>
               )}
             </div>
-          </div>
 
-          <aside className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Resumo do preço</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Resumo do preco</h3>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <div className="flex items-center justify-between">
-                  <span>Preço padrão</span>
+                  <span>Preco padrao</span>
                   <span>{formatPrice(BASE_PRICE)}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -417,27 +440,28 @@ export default function PublicCaseNewPage() {
                 </div>
                 <div className="h-px bg-slate-200" />
                 <div className="flex items-center justify-between font-semibold text-slate-900">
-                  <span>Preço final</span>
+                  <span>Preco final</span>
                   <span>{formatPrice(finalPrice)}</span>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-slate-500">
-                Sem código: R$ 87,90. Com código válido do sindicato: R$ 67,90.
-              </p>
+              <p className="mt-3 text-xs text-slate-500">Sem codigo: R$ 87,90. Com codigo valido: R$ 67,90.</p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Próxima ação</h3>
-              <p className="mt-2 text-sm text-slate-600">
-                Ao continuar, o caso será criado e o link de pagamento será gerado.
-              </p>
+              <h3 className="text-sm font-semibold text-slate-900">Proxima acao</h3>
+              <p className="mt-2 text-sm text-slate-600">Ao continuar, o caso sera criado e o link de pagamento sera gerado.</p>
               <Button
                 onClick={handleCreateCase}
-                disabled={submitting}
+                disabled={!canContinue}
                 className="mt-4 w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
               >
                 {submitting ? "Criando e gerando pagamento..." : "Continuar para pagamento"}
               </Button>
+              {!canContinue && (
+                <p className="mt-2 text-xs text-amber-700">
+                  Preencha os campos obrigatorios, envie o PDF e valide (ou limpe) o codigo para continuar.
+                </p>
+              )}
               {caseId && (
                 <p className="mt-3 text-xs text-slate-600">
                   Caso criado com sucesso.{" "}
@@ -446,27 +470,26 @@ export default function PublicCaseNewPage() {
                   </Link>
                 </p>
               )}
+              {error && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {error}
+                </div>
+              )}
+              {slowSubmit && !error && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  O envio esta demorando mais que o normal. Se houver queda de conexao, use Retomar caso.
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">Se sua internet cair</h3>
               <p className="mt-2 text-sm text-slate-600">
-                Você pode retomar o caso pelo código salvo automaticamente no navegador.
+                Voce pode retomar o caso pelo codigo salvo automaticamente no navegador.
               </p>
             </div>
           </aside>
         </div>
-
-        {error && (
-          <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-        {slowSubmit && !error && (
-          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            O envio está demorando mais que o normal. Se houver queda de conexão, use o botão Retomar caso.
-          </div>
-        )}
       </section>
     </main>
   );

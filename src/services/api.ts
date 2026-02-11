@@ -19,13 +19,22 @@ const craEnv =
     ? process.env.REACT_APP_API_URL
     : undefined;
 
-// Fallback padrao agora e o backend em producao, NAO mais localhost
-const rawApiBaseUrl = nextEnv || viteEnv || craEnv || "https://ppp-backend-sjjc.onrender.com";
-// Guardrail para typo comum de hostname em ambiente.
-export const API_BASE_URL: string = rawApiBaseUrl.replace(
-  "ppp-backend-sjjic.onrender.com",
-  "ppp-backend-sjjc.onrender.com"
-);
+const DEFAULT_API_BASE_URL = "https://ppp-backend-sjjc.onrender.com";
+
+function normalizeApiBaseUrl(value?: string): string {
+  const raw = (value || DEFAULT_API_BASE_URL).trim();
+  const withoutTrailingSlash = raw.replace(/\/+$/, "");
+
+  return withoutTrailingSlash
+    .replace("http://ppp-backend-sjjc.onrender.com", DEFAULT_API_BASE_URL)
+    .replace("ppp-backend-sjjic.onrender.com", "ppp-backend-sjjc.onrender.com");
+}
+
+// Fallback padrao agora e o backend em producao, NAO mais localhost.
+// Guardrails aqui evitam chamadas para host antigo/typo mesmo com env legado.
+const rawApiBaseUrl = nextEnv || viteEnv || craEnv || DEFAULT_API_BASE_URL;
+export const API_BASE_URL: string = normalizeApiBaseUrl(rawApiBaseUrl);
+export const API_HEALTH_URL: string = `${API_BASE_URL}/health`;
 
 // Tipos basicos usados pelo frontend
 
