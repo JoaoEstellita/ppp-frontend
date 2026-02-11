@@ -6,6 +6,8 @@ import Link from "next/link";
 import { getOrgMetrics, getOrgUnionCode, updateOrgUnionCode, OrgMetrics } from "@/src/services/api";
 import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
+const UNION_EARNINGS_PER_CASE = 10;
+
 export default function OrgDashboardPage() {
   const params = useParams();
   const slug =
@@ -88,6 +90,7 @@ export default function OrgDashboardPage() {
   }
 
   const statusCounts = metrics.statusCounts || {};
+  const unionBalance = (metrics.paidCount ?? 0) * UNION_EARNINGS_PER_CASE;
 
   return (
     <div className="space-y-6">
@@ -108,10 +111,11 @@ export default function OrgDashboardPage() {
           <div className="text-2xl font-semibold text-gray-900">{metrics.paidCount}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="text-xs uppercase text-gray-500">Receita bruta</div>
+          <div className="text-xs uppercase text-gray-500">Saldo do sindicato</div>
           <div className="text-2xl font-semibold text-gray-900">
-            R$ {metrics.grossAmount.toFixed(2)}
+            R$ {unionBalance.toFixed(2)}
           </div>
+          <div className="text-xs text-gray-500 mt-1">R$ 10,00 por PPP pago</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-xs uppercase text-gray-500">Concluidos</div>

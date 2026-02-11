@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/Button";
 import {
@@ -325,6 +326,12 @@ export default function AdminOrganizationsPage() {
                     >
                       {org.status}
                     </span>
+                    <Link
+                      href={`/s/${org.slug}/dashboard`}
+                      className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                    >
+                      Acessar
+                    </Link>
                     <button
                       type="button"
                       onClick={() => openInviteModal(org)}
@@ -582,3 +589,8 @@ export default function AdminOrganizationsPage() {
     </div>
   );
 }
+
+
+
+
+

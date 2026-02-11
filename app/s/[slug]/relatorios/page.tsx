@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { getOrgMetrics, OrgMetrics } from "@/src/services/api";
 import { Button } from "@/components/Button";
 
+const UNION_EARNINGS_PER_CASE = 10;
+
 function currentYearMonth(): string {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -23,6 +25,10 @@ function formatMoney(value: number | null | undefined): string {
 function totalCases(metrics: OrgMetrics | null): number {
   if (!metrics?.statusCounts) return 0;
   return Object.values(metrics.statusCounts).reduce((acc, value) => acc + Number(value || 0), 0);
+}
+
+function unionBalanceFromPaid(paidCount: number | null | undefined): number {
+  return Number(paidCount || 0) * UNION_EARNINGS_PER_CASE;
 }
 
 function lastMonths(count: number): string[] {
@@ -144,10 +150,11 @@ export default function OrgReportsPage() {
           <div className="text-2xl font-bold text-gray-900">{loading ? "-" : metrics?.paidCount ?? 0}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="text-xs text-gray-500">Receita bruta</div>
+          <div className="text-xs text-gray-500">Saldo do sindicato</div>
           <div className="text-2xl font-bold text-gray-900">
-            {loading ? "-" : formatMoney(metrics?.grossAmount)}
+            {loading ? "-" : formatMoney(unionBalanceFromPaid(metrics?.paidCount))}
           </div>
+          <div className="text-xs text-gray-500 mt-1">R$ 10,00 por PPP pago</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-xs text-gray-500">Pagos via código</div>
@@ -188,7 +195,7 @@ export default function OrgReportsPage() {
                     <th className="text-left px-3 py-2 font-medium text-gray-600">Mês</th>
                     <th className="text-left px-3 py-2 font-medium text-gray-600">Casos</th>
                     <th className="text-left px-3 py-2 font-medium text-gray-600">Pagos</th>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600">Receita</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600">Saldo sindicato</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -197,7 +204,9 @@ export default function OrgReportsPage() {
                       <td className="px-3 py-2 text-gray-900">{row.year_month}</td>
                       <td className="px-3 py-2 text-gray-700">{totalCases(row)}</td>
                       <td className="px-3 py-2 text-gray-700">{row.paidCount ?? 0}</td>
-                      <td className="px-3 py-2 text-gray-700">{formatMoney(row.grossAmount)}</td>
+                      <td className="px-3 py-2 text-gray-700">
+                        {formatMoney(unionBalanceFromPaid(row.paidCount))}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -209,4 +218,3 @@ export default function OrgReportsPage() {
     </div>
   );
 }
-

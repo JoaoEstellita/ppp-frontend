@@ -17,7 +17,7 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
       ? params.slug[0]
       : null;
   const { session, loading } = useAuth();
-  const { loading: orgLoading, org } = useOrgAccess();
+  const { loading: orgLoading, isPlatformAdmin, org } = useOrgAccess();
 
   useEffect(() => {
     if (!loading && !session) {
@@ -27,10 +27,11 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (loading || orgLoading || !session) return;
+    if (isPlatformAdmin) return;
     if (org?.slug && slug && org.slug !== slug) {
       router.replace(`/s/${org.slug}/dashboard`);
     }
-  }, [loading, orgLoading, session, org?.slug, slug, router]);
+  }, [loading, orgLoading, session, isPlatformAdmin, org?.slug, slug, router]);
 
   if (loading || orgLoading || !session) {
     return (
