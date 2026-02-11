@@ -119,6 +119,34 @@ function isTransientSubmitError(err: unknown): boolean {
   return status >= 500 && status <= 504;
 }
 
+function isRecentIsoDate(value: string | null | undefined, maxAgeMs: number): boolean {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time <= maxAgeMs;
+}
+
+function isGatewayTransientMessage(value: string | null | undefined): boolean {
+  const text = String(value || "").toLowerCase();
+  if (!text) return false;
+  return (
+    /http\s*(500|502|503|504)/.test(text) ||
+    text.includes("bad gateway") ||
+    text.includes("gateway timeout") ||
+    text.includes("timeout")
+  );
+}
+
+function isTransientGatewaySubmitState(caseData: AdminCaseDetail["case"] | null | undefined): boolean {
+  if (!caseData) return false;
+  const looksLikeGatewayError =
+    caseData.last_n8n_status === "error" &&
+    isGatewayTransientMessage(caseData.last_n8n_error);
+  if (!looksLikeGatewayError) return false;
+  if (caseData.last_n8n_callback_at) return false;
+  return isRecentIsoDate(caseData.last_submit_at, 5 * 60 * 1000);
+}
+
 export default function AdminCaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -182,7 +210,8 @@ export default function AdminCaseDetailPage() {
   // Polling automático quando caso está em processing (a cada 10 segundos)
   useEffect(() => {
     const status = caseDetail?.case?.status;
-    if (status !== "processing" && status !== "paid_processing") return;
+    const transientGatewaySubmit = isTransientGatewaySubmitState(caseDetail?.case as AdminCaseDetail["case"] | null);
+    if (status !== "processing" && status !== "paid_processing" && !transientGatewaySubmit) return;
 
     const interval = setInterval(() => {
       loadCase();
@@ -190,7 +219,16 @@ export default function AdminCaseDetailPage() {
     }, 10000); // 10 segundos
 
     return () => clearInterval(interval);
-  }, [caseDetail?.case?.status, loadCase, loadCaseEvents]);
+  }, [
+    caseDetail?.case?.status,
+    caseDetail?.case?.last_n8n_status,
+    caseDetail?.case?.last_n8n_error,
+    caseDetail?.case?.last_n8n_callback_at,
+    caseDetail?.case?.last_submit_at,
+    caseDetail?.case,
+    loadCase,
+    loadCaseEvents,
+  ]);
 
   const handleDownload = async (docId: string, fileName: string) => {
     setActionLoading(`download-${docId}`);
@@ -443,6 +481,9 @@ export default function AdminCaseDetailPage() {
       : errorCode === "validation_failed"
       ? "Falha de validação técnica. Verifique os dados e reenvie o PPP."
       : "");
+  const transientGatewaySubmit = isTransientGatewaySubmitState(caseData);
+  const effectiveN8nStatus = transientGatewaySubmit ? "submitted" : caseData.last_n8n_status;
+  const effectiveN8nError = transientGatewaySubmit ? null : caseData.last_n8n_error;
 
   // Variável intermediária com tipo explícito para evitar erro de inferência unknown
   const feedbackNode: React.ReactNode = (() => {
@@ -633,12 +674,12 @@ export default function AdminCaseDetailPage() {
             <div>
               <span className="text-gray-500">Status N8N:</span>{" "}
               <span className={`font-medium ${
-                caseData.last_n8n_status === "success" ? "text-green-600" :
-                caseData.last_n8n_status === "error" ? "text-red-600" :
-                caseData.last_n8n_status === "submitted" ? "text-blue-600" :
+                effectiveN8nStatus === "success" ? "text-green-600" :
+                effectiveN8nStatus === "error" ? "text-red-600" :
+                effectiveN8nStatus === "submitted" ? "text-blue-600" :
                 "text-gray-600"
               }`}>
-                {caseData.last_n8n_status ?? "-"}
+                {effectiveN8nStatus ?? "-"}
               </span>
             </div>
             <div>
@@ -653,11 +694,18 @@ export default function AdminCaseDetailPage() {
                 {formatDate(caseData.last_n8n_callback_at)}
               </span>
             </div>
-            {caseData.last_n8n_error && (
+            {effectiveN8nError && (
               <div className="sm:col-span-2 lg:col-span-3">
                 <span className="text-gray-500">Último Erro N8N:</span>{" "}
                 <span className="font-medium text-red-600">
-                  {caseData.last_n8n_error}
+                  {effectiveN8nError}
+                </span>
+              </div>
+            )}
+            {transientGatewaySubmit && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <span className="font-medium text-blue-700">
+                  Envio em validação: execução iniciada, aguardando callback final do n8n.
                 </span>
               </div>
             )}
@@ -768,7 +816,7 @@ export default function AdminCaseDetailPage() {
       </div>
 
       {/* Erro (se houver) */}
-      {caseData.status === "error" && (
+      {caseData.status === "error" && !transientGatewaySubmit && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
@@ -834,6 +882,15 @@ export default function AdminCaseDetailPage() {
                 {actionLoading === "submit" ? "Reenviando..." : "Reenviar para análise"}
               </Button>
           </div>
+        </div>
+      )}
+
+      {transientGatewaySubmit && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="text-sm font-semibold text-blue-800">Envio em validação</h3>
+          <p className="text-sm text-blue-700 mt-1">
+            O backend recebeu erro transitório de gateway, mas o n8n já foi acionado. Aguarde o callback para status final.
+          </p>
         </div>
       )}
 

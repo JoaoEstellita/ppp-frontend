@@ -120,6 +120,34 @@ function isTransientSubmitError(err: unknown): boolean {
   return status >= 500 && status <= 504;
 }
 
+function isRecentIsoDate(value: string | null | undefined, maxAgeMs: number): boolean {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time <= maxAgeMs;
+}
+
+function isGatewayTransientMessage(value: string | null | undefined): boolean {
+  const text = String(value || "").toLowerCase();
+  if (!text) return false;
+  return (
+    /http\s*(500|502|503|504)/.test(text) ||
+    text.includes("bad gateway") ||
+    text.includes("gateway timeout") ||
+    text.includes("timeout")
+  );
+}
+
+function isTransientGatewaySubmitState(caseData: CaseDetail["case"] | null | undefined): boolean {
+  if (!caseData) return false;
+  const looksLikeGatewayError =
+    caseData.last_n8n_status === "error" &&
+    isGatewayTransientMessage(caseData.last_n8n_error);
+  if (!looksLikeGatewayError) return false;
+  if (caseData.last_n8n_callback_at) return false;
+  return isRecentIsoDate(caseData.last_submit_at, 5 * 60 * 1000);
+}
+
 function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "danger" | "info" | "default" {
   switch (status) {
     case "done":
@@ -524,11 +552,12 @@ export default function CaseDetailPage() {
   // Polling automático quando caso está em processing (a cada 10 segundos)
   useEffect(() => {
     const status = caseDetail?.case?.status;
+    const transientGatewaySubmit = isTransientGatewaySubmitState(caseDetail?.case || null);
     const hasError =
-      !!caseDetail?.case?.last_error_code ||
-      !!caseDetail?.case?.last_error_message ||
-      caseDetail?.case?.last_n8n_status === "error";
-    if (status !== "processing" && status !== "paid_processing") return;
+      (!transientGatewaySubmit && !!caseDetail?.case?.last_error_code) ||
+      (!transientGatewaySubmit && !!caseDetail?.case?.last_error_message) ||
+      (!transientGatewaySubmit && caseDetail?.case?.last_n8n_status === "error");
+    if (status !== "processing" && status !== "paid_processing" && !transientGatewaySubmit) return;
     if (hasError) return;
 
     const interval = setInterval(() => {
@@ -541,6 +570,10 @@ export default function CaseDetailPage() {
     caseDetail?.case?.last_error_code,
     caseDetail?.case?.last_error_message,
     caseDetail?.case?.last_n8n_status,
+    caseDetail?.case?.last_n8n_error,
+    caseDetail?.case?.last_n8n_callback_at,
+    caseDetail?.case?.last_submit_at,
+    caseDetail?.case,
     fetchCase,
   ]);
 
@@ -1036,9 +1069,10 @@ export default function CaseDetailPage() {
     ? "Recomendamos revisar ou reenviar para melhorar a conferencia."
     : "Análise concluída sem conflitos críticos.";
   const errorCode = String(caseRecord.last_error_code ?? "").toLowerCase();
+  const transientGatewaySubmit = isTransientGatewaySubmitState(caseRecord);
   const errorReasonPublic =
-    caseRecord.last_error_message ??
-    caseRecord.last_n8n_error ??
+    (transientGatewaySubmit ? null : caseRecord.last_error_message) ??
+    (transientGatewaySubmit ? null : caseRecord.last_n8n_error) ??
     (errorCode === "ocr_size_limit"
       ? "O arquivo enviado e muito grande para leitura automatica (limite 5MB). Reenvie um PDF menor ou comprimido."
       : errorCode === "download_failed"
@@ -1050,7 +1084,7 @@ export default function CaseDetailPage() {
       : errorCode === "validation_failed"
       ? "Falha de validacao tecnica. Verifique os dados e reenviar o PPP."
       : "");
-  const hasErrorPayload = Boolean(errorCode || errorReasonPublic);
+  const hasErrorPayload = !transientGatewaySubmit && Boolean(errorCode || errorReasonPublic);
   const effectiveErrorCode =
     errorCode ||
     (hasValidationFailure ? "validation_failed" : hasVerifierBlock ? "conflict_detected" : "");
@@ -1064,7 +1098,7 @@ export default function CaseDetailPage() {
       : effectiveErrorCode === "worker_cpf_conflict"
       ? "DIVERGENCIA NO CPF"
       : "ERRO DE PROCESSAMENTO";
-  const showErrorBanner = status === "error" || hasErrorPayload;
+  const showErrorBanner = (status === "error" || hasErrorPayload) && !transientGatewaySubmit;
   const slaInfo = getSlaByStatus(status);
   const nextSteps = getOperationalNextSteps(effectiveErrorCode, hasPppInput);
   const timelineEvents = (() => {
@@ -1115,7 +1149,13 @@ export default function CaseDetailPage() {
       caseRecord.last_n8n_callback_at,
       "Callback recebido",
       `Retorno do n8n com status: ${caseRecord.last_n8n_status || "-"}.`,
-      caseRecord.last_n8n_status === "success" ? "success" : caseRecord.last_n8n_status === "error" ? "danger" : "info"
+      transientGatewaySubmit
+        ? "info"
+        : caseRecord.last_n8n_status === "success"
+        ? "success"
+        : caseRecord.last_n8n_status === "error"
+        ? "danger"
+        : "info"
     );
     push(
       "error",
@@ -1178,6 +1218,14 @@ export default function CaseDetailPage() {
         <p className="text-sm text-blue-800">{slaInfo.target}</p>
         <p className="text-xs text-blue-700">Proxima acao recomendada: {slaInfo.nextAction}</p>
       </div>
+
+      {transientGatewaySubmit && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-800">
+            Envio em validação: o n8n já foi acionado e estamos aguardando o callback final.
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-6 space-y-3">
         <h3 className="text-sm font-semibold text-gray-700">Linha do tempo do caso</h3>
