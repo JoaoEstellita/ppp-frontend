@@ -1100,6 +1100,111 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
+      {!analysis && (
+        <div id="cadastro-corrections" className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Dados do caso</h3>
+              <p className="text-xs text-gray-500">
+                Edite os dados do trabalhador e da empresa quando necessário.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                if (editingDetails && caseDetail) {
+                  const cadastroWorkerName = caseDetail.worker?.name ?? caseDetail.case.worker?.name ?? "";
+                  const cadastroWorkerCpf = caseDetail.worker?.cpf ?? caseDetail.case.worker?.cpf ?? "";
+                  const cadastroCompanyName = caseDetail.company?.name ?? caseDetail.case.company?.name ?? "";
+                  const cadastroCompanyCnpj = caseDetail.company?.cnpj ?? caseDetail.case.company?.cnpj ?? "";
+                  setWorkerNameEdit(cadastroWorkerName);
+                  setWorkerCpfEdit(cadastroWorkerCpf);
+                  setCompanyNameEdit(cadastroCompanyName);
+                  setCompanyCnpjEdit(cadastroCompanyCnpj);
+                }
+                setEditingDetails((prev) => !prev);
+                setDetailsDirty(false);
+                setDetailsMessage(null);
+              }}
+              className="bg-gray-100 text-gray-800 hover:bg-gray-200"
+            >
+              {editingDetails ? "Cancelar edição" : "Editar"}
+            </Button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="text-xs text-gray-600">
+              Nome do trabalhador
+              <input
+                value={workerNameEdit}
+                onChange={(event) => {
+                  setWorkerNameEdit(event.target.value);
+                  setDetailsDirty(true);
+                }}
+                disabled={!editingDetails}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </label>
+            <label className="text-xs text-gray-600">
+              CPF
+              <input
+                value={workerCpfEdit}
+                onChange={(event) => {
+                  setWorkerCpfEdit(event.target.value);
+                  setDetailsDirty(true);
+                }}
+                disabled={!editingDetails}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </label>
+            <label className="text-xs text-gray-600">
+              Empresa
+              <input
+                value={companyNameEdit}
+                onChange={(event) => {
+                  setCompanyNameEdit(event.target.value);
+                  setDetailsDirty(true);
+                }}
+                disabled={!editingDetails}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </label>
+            <label className="text-xs text-gray-600">
+              CNPJ
+              <input
+                value={companyCnpjEdit}
+                onChange={(event) => {
+                  setCompanyCnpjEdit(event.target.value);
+                  setDetailsDirty(true);
+                }}
+                disabled={!editingDetails}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </label>
+          </div>
+          {detailsMessage && (
+            <div
+              className={`text-xs px-3 py-2 rounded ${
+                detailsMessage.type === "success"
+                  ? "bg-green-50 text-green-700"
+                  : "bg-red-50 text-red-700"
+              }`}
+            >
+              {detailsMessage.text}
+            </div>
+          )}
+          {editingDetails && (
+            <div>
+              <Button
+                onClick={handleSaveDetails}
+                disabled={savingDetails || !detailsDirty}
+                className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+              >
+                {savingDetails ? "Salvando..." : "Salvar dados"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Upload de PDF - Disponível em awaiting_payment, awaiting_pdf e ready_to_process */}
       {(status === "awaiting_payment" || status === "awaiting_pdf" || status === "ready_to_process") && (
         <div id="ppp-upload-section" className="bg-white rounded-lg shadow p-6 space-y-4">

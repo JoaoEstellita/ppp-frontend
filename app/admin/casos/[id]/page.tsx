@@ -481,68 +481,68 @@ export default function AdminCaseDetailPage() {
         </div>
       </div>
 
-      {(caseData.status === "error" || hasDivergence) && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">Correção de dados do cadastro</h3>
-            <Button
-              onClick={() => setEditingDetails((v) => !v)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {editingDetails ? "Cancelar" : "Editar dados"}
-            </Button>
-          </div>
-          <p className="text-sm text-gray-500">
-            Atualize os dados para reduzir divergências no processamento.
-          </p>
-
-          {editingDetails && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span className="text-gray-600">Nome do trabalhador</span>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2"
-                  value={detailsForm.workerName}
-                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, workerName: e.target.value }))}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-gray-600">CPF</span>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2"
-                  value={detailsForm.workerCpf}
-                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, workerCpf: formatCpf(e.target.value) }))}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-gray-600">Empresa</span>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2"
-                  value={detailsForm.companyName}
-                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, companyName: e.target.value }))}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-gray-600">CNPJ</span>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2"
-                  value={detailsForm.companyCnpj}
-                  onChange={(e) => setDetailsForm((prev) => ({ ...prev, companyCnpj: formatCnpj(e.target.value) }))}
-                />
-              </label>
-              <div className="sm:col-span-2 pt-2">
-                <Button
-                  onClick={handleSaveDetails}
-                  disabled={detailsSaving}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {detailsSaving ? "Salvando..." : "Salvar correções"}
-                </Button>
-              </div>
-            </div>
-          )}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-700">Dados do cadastro</h3>
+          <Button
+            onClick={() => setEditingDetails((v) => !v)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {editingDetails ? "Cancelar" : "Editar dados"}
+          </Button>
         </div>
-      )}
+        <p className="text-sm text-gray-500">
+          {caseData.status === "error" || hasDivergence
+            ? "Atualize os dados para reduzir divergências no processamento."
+            : "Edite os dados do trabalhador e da empresa quando necessário."}
+        </p>
+
+        {editingDetails && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span className="text-gray-600">Nome do trabalhador</span>
+              <input
+                className="w-full rounded border border-gray-300 px-3 py-2"
+                value={detailsForm.workerName}
+                onChange={(e) => setDetailsForm((prev) => ({ ...prev, workerName: e.target.value }))}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-gray-600">CPF</span>
+              <input
+                className="w-full rounded border border-gray-300 px-3 py-2"
+                value={detailsForm.workerCpf}
+                onChange={(e) => setDetailsForm((prev) => ({ ...prev, workerCpf: formatCpf(e.target.value) }))}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-gray-600">Empresa</span>
+              <input
+                className="w-full rounded border border-gray-300 px-3 py-2"
+                value={detailsForm.companyName}
+                onChange={(e) => setDetailsForm((prev) => ({ ...prev, companyName: e.target.value }))}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-gray-600">CNPJ</span>
+              <input
+                className="w-full rounded border border-gray-300 px-3 py-2"
+                value={detailsForm.companyCnpj}
+                onChange={(e) => setDetailsForm((prev) => ({ ...prev, companyCnpj: formatCnpj(e.target.value) }))}
+              />
+            </label>
+            <div className="sm:col-span-2 pt-2">
+              <Button
+                onClick={handleSaveDetails}
+                disabled={detailsSaving}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {detailsSaving ? "Salvando..." : "Salvar correções"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Status N8N - Painel de Monitoramento */}
       {(caseData.status === "processing" || caseData.last_n8n_status) && (
