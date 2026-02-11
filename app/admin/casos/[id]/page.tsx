@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
+import { ResultSummaryCard } from "@/components/ResultSummaryCard";
 import {
   adminGetCase,
   adminGetDocumentDownloadUrl,
@@ -473,6 +474,9 @@ export default function AdminCaseDetailPage() {
 
   const { case: caseData, worker, company, documents, analysis, payment, supportRequest, workflowLogs } = caseDetail;
   const pppInputDoc = documents.find((doc) => doc.document_type === "ppp_input");
+  const pppOutputDoc = documents.find(
+    (doc) => doc.document_type === "ppp_result" || doc.document_type === "ppp_output"
+  );
   const errorCode = String(caseData.last_error_code ?? "").toLowerCase();
   const hasDivergence = errorCode === "conflict_detected" || Boolean((caseData as any).has_divergence);
   const errorMessage =
@@ -491,6 +495,28 @@ export default function AdminCaseDetailPage() {
   const transientGatewaySubmit = isTransientGatewaySubmitState(caseData);
   const effectiveN8nStatus = transientGatewaySubmit ? "submitted" : caseData.last_n8n_status;
   const effectiveN8nError = transientGatewaySubmit ? null : caseData.last_n8n_error;
+  const adminNextActions = (() => {
+    if (transientGatewaySubmit) {
+      return [
+        "Aguardar callback final do n8n para confirmar status.",
+        "Evitar novo reenvio antes do callback para nao duplicar processamento.",
+      ];
+    }
+    if (caseData.status === "error") {
+      return [
+        "Revisar codigo/mensagem de erro no painel.",
+        "Corrigir cadastro ou reenviar PDF conforme causa.",
+        "Se necessario, reenviar para analise manualmente.",
+      ];
+    }
+    if (caseData.status === "processing" || caseData.status === "paid_processing") {
+      return ["Acompanhar retorno do callback e fila do n8n."];
+    }
+    if (pppOutputDoc) {
+      return ["Conferir resultado final e encerrar atendimento."];
+    }
+    return ["Monitorar status e eventos do caso."];
+  })();
 
   // Variável intermediária com tipo explícito para evitar erro de inferência unknown
   const feedbackNode: React.ReactNode = (() => {
@@ -534,6 +560,21 @@ export default function AdminCaseDetailPage() {
 
       {/* Mensagem de feedback */}
       {feedbackNode}
+
+      <ResultSummaryCard
+        audience="admin"
+        status={caseData.status}
+        finalClassification={analysis?.final_classification ?? null}
+        summary={caseData.last_error_message || null}
+        validationOk={null}
+        validationIssues={[]}
+        verifierRisk={null}
+        verifierIssues={[]}
+        resultAvailable={Boolean(pppOutputDoc)}
+        lastErrorMessage={transientGatewaySubmit ? null : errorMessage || null}
+        nextActions={adminNextActions}
+        updatedAt={caseData.updated_at || null}
+      />
 
       {/* Grid de informações */}
       <div className="grid gap-6 md:grid-cols-2">

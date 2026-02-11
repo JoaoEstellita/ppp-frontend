@@ -20,6 +20,7 @@ import {
 } from "@/src/services/api";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
+import { ResultSummaryCard } from "@/components/ResultSummaryCard";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 
@@ -1233,6 +1234,21 @@ export default function CaseDetailPage() {
           </p>
         </div>
       )}
+
+      <ResultSummaryCard
+        audience="union"
+        status={status}
+        finalClassification={String(finalClassification || "") || null}
+        summary={String(analysisSummary || "") || null}
+        validationOk={typeof validationOk === "boolean" ? validationOk : null}
+        validationIssues={validationIssues}
+        verifierRisk={String(verifierRisk || "") || null}
+        verifierIssues={verifierIssues}
+        resultAvailable={Boolean(pppOutputDoc)}
+        lastErrorMessage={showErrorBanner ? errorReasonPublic : null}
+        nextActions={nextSteps}
+        updatedAt={caseRecord.updatedAt || null}
+      />
 
       <div className="bg-white rounded-lg shadow p-6 space-y-3">
         <h3 className="text-sm font-semibold text-gray-700">Linha do tempo do caso</h3>

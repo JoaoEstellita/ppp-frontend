@@ -13,6 +13,7 @@ import {
   updatePublicCaseDetails,
 } from "@/src/services/api";
 import { Button } from "@/components/Button";
+import { ResultSummaryCard } from "@/components/ResultSummaryCard";
 
 const BASE_PRICE = 87.9;
 const DISCOUNT_PRICE = 67.9;
@@ -458,6 +459,34 @@ export default function PublicCaseStatusPage() {
     Boolean(caseDetail?.case?.has_divergence);
 
   const showIdentityEdit = showErrorBanner || status === "done_warning";
+  const validationIssues = Array.isArray(caseDetail?.case?.validation_issues)
+    ? caseDetail.case.validation_issues
+    : [];
+  const verifierIssues = Array.isArray(caseDetail?.case?.verifier_issues)
+    ? caseDetail.case.verifier_issues
+    : [];
+  const nextActions = (() => {
+    if (showErrorBanner) {
+      return [
+        "Revise os dados de cadastro e compare com o documento.",
+        "Reenvie o PDF com melhor qualidade ou dados corrigidos.",
+        "Acompanhe o status ate o callback final.",
+      ];
+    }
+    if (resultDoc) {
+      return [
+        "Baixe e guarde o resultado final.",
+        "Se precisar, compartilhe o PDF com seu sindicato ou advogado.",
+      ];
+    }
+    if (status === "processing" || status === "paid_processing") {
+      return ["Aguarde a conclusao do processamento."];
+    }
+    if (status === "ready_to_process") {
+      return ["Aguarde o envio para analise pelo sindicato/admin."];
+    }
+    return ["Acompanhe as proximas atualizacoes do caso por este link."];
+  })();
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -515,6 +544,28 @@ export default function PublicCaseStatusPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="mb-6">
+          <ResultSummaryCard
+            audience="worker"
+            status={status}
+            finalClassification={
+              caseDetail?.case?.final_classification ??
+              caseDetail?.case?.finalClassification ??
+              caseDetail?.case?.analysis?.final_classification ??
+              null
+            }
+            summary={caseDetail?.case?.analysis_summary ?? caseDetail?.case?.analysis?.summary ?? null}
+            validationOk={caseDetail?.case?.validation_ok ?? null}
+            validationIssues={validationIssues}
+            verifierRisk={caseDetail?.case?.verifier_risk ?? null}
+            verifierIssues={verifierIssues}
+            resultAvailable={Boolean(resultDoc)}
+            lastErrorMessage={showErrorBanner ? resolvePublicErrorMessage(lastErrorCode, lastErrorMessage) : null}
+            nextActions={nextActions}
+            updatedAt={caseDetail?.case?.updated_at ?? null}
+          />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
