@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/lib/authContext";
 import { useOrgAccess } from "@/src/hooks/useOrgAccess";
 import { Button } from "@/components/Button";
@@ -79,8 +80,15 @@ export default function LandingPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-600 text-white flex items-center justify-center font-bold">
-              MP
+            <div className="h-10 w-10 rounded-xl overflow-hidden border border-blue-100 bg-white flex items-center justify-center shrink-0">
+              <Image
+                src="/assets/meupppicone.png"
+                alt="Meu PPP"
+                width={40}
+                height={40}
+                className="h-full w-full object-cover"
+                priority
+              />
             </div>
             <div className="min-w-0">
               <div className="text-xl font-extrabold tracking-tight">Meu PPP</div>
