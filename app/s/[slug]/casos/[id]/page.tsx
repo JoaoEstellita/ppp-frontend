@@ -92,6 +92,34 @@ function isPppOutputType(documentType?: string, fallbackType?: string): boolean 
   return type === "ppp_result" || type === "ppp_output";
 }
 
+function hasSubmitProgress(
+  before: CaseDetail | null | undefined,
+  after: CaseDetail | null | undefined
+): boolean {
+  if (!after) return false;
+  const beforeAttempts = Number(before?.case?.submit_attempts ?? 0);
+  const afterAttempts = Number(after.case?.submit_attempts ?? 0);
+  if (afterAttempts > beforeAttempts) return true;
+  if ((after.case?.last_submit_at || "") !== (before?.case?.last_submit_at || "")) return true;
+  if (after.case?.status === "processing" || after.case?.status === "paid_processing") return true;
+  if (after.case?.last_n8n_status === "submitted" || after.case?.last_n8n_status === "success") return true;
+  return false;
+}
+
+function getApiStatus(err: unknown): number | null {
+  if (err && typeof err === "object" && "status" in err) {
+    const value = (err as { status?: unknown }).status;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function isTransientSubmitError(err: unknown): boolean {
+  const status = getApiStatus(err);
+  if (status === null) return false;
+  return status >= 500 && status <= 504;
+}
+
 function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "danger" | "info" | "default" {
   switch (status) {
     case "done":
@@ -681,6 +709,7 @@ export default function CaseDetailPage() {
   // Handler para enviar para análise (n8n)
   const handleSubmitForAnalysis = useCallback(async () => {
     if (!slug || !caseId) return;
+    const snapshotBeforeSubmit = caseDetail;
     try {
       setSubmitting(true);
       setActionMessage(null);
@@ -709,13 +738,40 @@ export default function CaseDetailPage() {
         } else {
           setActionMessage({ type: "error", text: err.message || "Não foi possível enviar para análise." });
         }
-      } else {
+      } else if (!isTransientSubmitError(err)) {
         setActionMessage({ type: "error", text: "Não foi possível enviar para análise." });
+      }
+
+      if (isTransientSubmitError(err)) {
+        setActionMessage({
+          type: "success",
+          text: "Envio recebido pelo backend e em validação. Aguarde alguns segundos enquanto confirmamos o status.",
+        });
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          try {
+            const latest = await getCaseDetail(slug, caseId);
+            setCaseDetail(latest);
+            if (hasSubmitProgress(snapshotBeforeSubmit, latest)) {
+              setActionMessage({
+                type: "success",
+                text: "Envio confirmado. O caso foi encaminhado para processamento.",
+              });
+              return;
+            }
+          } catch {
+            // segue tentando nas próximas iterações
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+        setActionMessage({
+          type: "success",
+          text: "Envio em validação. Se o status não atualizar em até 1 minuto, tente reenviar.",
+        });
       }
     } finally {
       setSubmitting(false);
     }
-  }, [slug, caseId, fetchCase]);
+  }, [slug, caseId, caseDetail, fetchCase]);
 
   const handleSaveDetails = useCallback(async () => {
     if (!slug || !caseId) return;

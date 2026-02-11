@@ -9,6 +9,7 @@ import {
   adminGetDocumentDownloadUrl,
   adminUpdateCaseDetails,
   AdminCaseDetail,
+  ApiError,
   devMarkCaseAsPaid,
   adminResetAwaitingPdf,
   adminListCaseEvents,
@@ -88,6 +89,34 @@ function formatCnpj(value: string | null | undefined): string {
   if (v.length <= 8) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5)}`;
   if (v.length <= 12) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8)}`;
   return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8, 12)}-${v.slice(12)}`;
+}
+
+function hasSubmitProgress(
+  before: AdminCaseDetail | null | undefined,
+  after: AdminCaseDetail | null | undefined
+): boolean {
+  if (!after) return false;
+  const beforeAttempts = Number(before?.case?.submit_attempts ?? 0);
+  const afterAttempts = Number(after.case?.submit_attempts ?? 0);
+  if (afterAttempts > beforeAttempts) return true;
+  if ((after.case?.last_submit_at || "") !== (before?.case?.last_submit_at || "")) return true;
+  if (after.case?.status === "processing" || after.case?.status === "paid_processing") return true;
+  if (after.case?.last_n8n_status === "submitted" || after.case?.last_n8n_status === "success") return true;
+  return false;
+}
+
+function getApiStatus(err: unknown): number | null {
+  if (err && typeof err === "object" && "status" in err) {
+    const value = (err as { status?: unknown }).status;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function isTransientSubmitError(err: unknown): boolean {
+  const status = getApiStatus(err);
+  if (status === null) return false;
+  return status >= 500 && status <= 504;
 }
 
 export default function AdminCaseDetailPage() {
@@ -203,12 +232,49 @@ export default function AdminCaseDetailPage() {
 
     setActionLoading("submit");
     setFeedback(null);
+    const snapshotBeforeSubmit = caseDetail;
     try {
       const result = await adminSubmitCase(caseId, { forceReprocess: isFinalized });
       setFeedback({ type: "success", text: String(result?.message ?? "Enviado para análise!") });
       await loadCase();
       await loadCaseEvents();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 400 && String(err.message || "").toLowerCase().includes("conclu")) {
+        setFeedback({ type: "error", text: "Caso já foi concluído. Não é possível reprocessar." });
+        await loadCase();
+        await loadCaseEvents();
+        return;
+      }
+
+      if (isTransientSubmitError(err)) {
+        setFeedback({
+          type: "success",
+          text: "Envio recebido pelo backend e em validação. Aguarde alguns segundos enquanto confirmamos o status.",
+        });
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          try {
+            const latest = await adminGetCase(caseId);
+            setCaseDetail(latest);
+            await loadCaseEvents();
+            if (hasSubmitProgress(snapshotBeforeSubmit, latest)) {
+              setFeedback({
+                type: "success",
+                text: "Envio confirmado. O caso foi encaminhado para processamento.",
+              });
+              return;
+            }
+          } catch {
+            // segue tentando nas próximas iterações
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+        setFeedback({
+          type: "success",
+          text: "Envio em validação. Se o status não atualizar em até 1 minuto, tente reenviar.",
+        });
+        return;
+      }
+
       setFeedback({ type: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setActionLoading(null);
