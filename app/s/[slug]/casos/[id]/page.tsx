@@ -144,8 +144,15 @@ function isTransientGatewaySubmitState(caseData: CaseDetail["case"] | null | und
     caseData.last_n8n_status === "error" &&
     isGatewayTransientMessage(caseData.last_n8n_error);
   if (!looksLikeGatewayError) return false;
-  if (caseData.last_n8n_callback_at) return false;
-  return isRecentIsoDate(caseData.last_submit_at, 5 * 60 * 1000);
+  const submitAt = caseData.last_submit_at ? new Date(caseData.last_submit_at).getTime() : NaN;
+  const callbackAt = caseData.last_n8n_callback_at ? new Date(caseData.last_n8n_callback_at).getTime() : NaN;
+  const hasValidSubmit = !Number.isNaN(submitAt);
+  const hasValidCallback = !Number.isNaN(callbackAt);
+  if (!hasValidSubmit) return false;
+  if (!isRecentIsoDate(caseData.last_submit_at, 5 * 60 * 1000)) return false;
+  if (!hasValidCallback) return true;
+  // callback antigo de tentativa anterior: ainda é estado transitório desta nova tentativa
+  return submitAt > callbackAt;
 }
 
 function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "danger" | "info" | "default" {
