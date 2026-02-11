@@ -87,6 +87,11 @@ const STATUS_LABELS: Record<string, string> = {
   error: "Erro",
 };
 
+function isPppOutputType(documentType?: string, fallbackType?: string): boolean {
+  const type = String(documentType || fallbackType || "").toLowerCase();
+  return type === "ppp_result" || type === "ppp_output";
+}
+
 function getStatusBadgeVariant(status: CaseStatus): "success" | "warning" | "danger" | "info" | "default" {
   switch (status) {
     case "done":
@@ -554,6 +559,17 @@ export default function CaseDetailPage() {
     try {
       setSubmitting(true);
       setActionMessage(null);
+      const latest = await getCaseDetail(slug, caseId);
+      setCaseDetail(latest);
+      const latestStatus = latest.case.status as CaseStatus;
+      const latestDoneByCallback = latest.case.last_n8n_status === "success";
+      const latestDoneByDocument = (latest.case.documents || []).some((doc) =>
+        isPppOutputType(doc.document_type, doc.type)
+      );
+      if (latestStatus === "done" || latestDoneByCallback || latestDoneByDocument) {
+        setActionMessage({ type: "error", text: "Caso já foi concluído. Atualize a página para ver o resultado." });
+        return;
+      }
       const result = await submitCase(slug, caseId);
       if (result.ok) {
         setActionMessage({ type: "success", text: result.message || "Enviado para análise!" });
@@ -561,7 +577,13 @@ export default function CaseDetailPage() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setActionMessage({ type: "error", text: err.message || "Não foi possível enviar para análise." });
+        const message = String(err.message || "").toLowerCase();
+        if (err.status === 400 && message.includes("conclu")) {
+          setActionMessage({ type: "error", text: "Caso já foi concluído. Não é possível reprocessar." });
+          await fetchCase();
+        } else {
+          setActionMessage({ type: "error", text: err.message || "Não foi possível enviar para análise." });
+        }
       } else {
         setActionMessage({ type: "error", text: "Não foi possível enviar para análise." });
       }
@@ -643,16 +665,17 @@ export default function CaseDetailPage() {
   // Verificar se tem documento PPP output (resultado final)
   const pppOutputDoc = useMemo(() => {
     return caseDocuments.find((doc) => {
-      const type = (doc.document_type || (doc as { type?: string }).type || "").toLowerCase();
-      return type === "ppp_result" || type === "ppp_output";
+      return isPppOutputType(doc.document_type, (doc as { type?: string }).type);
     });
   }, [caseDocuments]);
 
   // Verificar se pode enviar para análise
   const canSubmitForAnalysis = useMemo(() => {
     const status = caseDetail?.case.status as CaseStatus;
-    return (status === "ready_to_process" || status === "error") && hasPppInput;
-  }, [caseDetail?.case.status, hasPppInput]);
+    const n8nStatus = caseDetail?.case.last_n8n_status;
+    const alreadyDone = status === "done" || n8nStatus === "success" || Boolean(pppOutputDoc);
+    return (status === "ready_to_process" || status === "error") && hasPppInput && !alreadyDone;
+  }, [caseDetail?.case.status, caseDetail?.case.last_n8n_status, hasPppInput, pppOutputDoc]);
 
   // Renderização condicional - APÓS todos os hooks
   if (loading) {
@@ -1102,7 +1125,7 @@ export default function CaseDetailPage() {
           </div>
 
           {/* Mensagem de feedback */}
-          {actionMessage && (
+          {actionMessage && status !== "ready_to_process" && (
             <div className={`p-3 rounded text-sm ${
               actionMessage.type === "success"
                 ? "bg-green-50 text-green-700"
@@ -1215,7 +1238,7 @@ export default function CaseDetailPage() {
 
           <Button
             onClick={handleSubmitForAnalysis}
-            disabled={submitting}
+            disabled={submitting || !canSubmitForAnalysis}
             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 text-base font-medium"
           >
             {submitting ? (
@@ -1223,6 +1246,8 @@ export default function CaseDetailPage() {
                 <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Enviando...
               </span>
+            ) : !canSubmitForAnalysis ? (
+              <span className="flex items-center gap-2">Caso já concluído</span>
             ) : (
               <span className="flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1626,7 +1651,7 @@ export default function CaseDetailPage() {
             {hasPppInput && (
               <Button
                 onClick={handleSubmitForAnalysis}
-                disabled={submitting || supportSent}
+                disabled={submitting || supportSent || !canSubmitForAnalysis}
                 className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
               >
                 {submitting ? (
