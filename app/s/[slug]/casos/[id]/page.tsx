@@ -1094,9 +1094,14 @@ export default function CaseDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold text-gray-900">Caso #{caseRecord.id}</h2>
-        <Badge variant={getStatusBadgeVariant(status)}>{statusLabel}</Badge>
+        <div className="flex items-center gap-2">
+          {(status === "done" || caseRecord.last_n8n_status === "success") && pppOutputDoc && (
+            <DownloadPdfButton slug={slug} caseId={caseId} docId={pppOutputDoc.id} />
+          )}
+          <Badge variant={getStatusBadgeVariant(status)}>{statusLabel}</Badge>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 grid gap-6 md:grid-cols-2">
