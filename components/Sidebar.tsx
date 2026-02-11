@@ -43,7 +43,7 @@ export function Sidebar() {
       <button
         type="button"
         onClick={() => setMobileOpen((prev) => !prev)}
-        className="md:hidden fixed top-3 left-3 z-50 rounded-md bg-gray-800 text-white px-3 py-2 text-sm"
+        className="fixed left-3 top-3 z-50 rounded-md bg-gray-800 px-3 py-2 text-sm text-white shadow-md md:hidden"
       >
         Menu
       </button>
@@ -58,7 +58,7 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 text-white p-4 transform transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 p-4 text-white transform transition-transform md:static md:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

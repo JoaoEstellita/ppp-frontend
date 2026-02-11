@@ -55,10 +55,12 @@ export function Topbar() {
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">{headerTitle}</h1>
-        <div className="flex items-center space-x-4 text-sm text-gray-700 relative">
+    <header className="border-b border-gray-200 bg-white px-4 py-3 pl-20 shadow-sm sm:px-6 md:pl-6 md:py-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h1 className="break-words text-2xl font-bold leading-tight text-gray-900 md:text-4xl">
+          {headerTitle}
+        </h1>
+        <div className="relative flex flex-wrap items-center gap-2 text-sm text-gray-700 md:gap-4">
           {isPlatformAdmin && !isAdminArea && (
             <Button variant="outline" onClick={() => router.push("/admin")}>
               Modo Admin
@@ -73,29 +75,29 @@ export function Topbar() {
             <button
               type="button"
               onClick={() => setOpen((prev) => !prev)}
-              className="relative px-2 py-1 rounded-md hover:bg-gray-100"
+              className="relative rounded-md px-2 py-1 hover:bg-gray-100"
               aria-label="Notificacoes"
             >
-              🔔
+              Notif.
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
+                <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-xs text-white">
                   {unreadCount}
                 </span>
               )}
             </button>
           )}
           {open && (
-            <div className="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-md shadow-lg p-3 z-50">
-              <div className="text-xs font-semibold text-gray-500 mb-2">Notificacoes</div>
+            <div className="absolute right-0 top-10 z-50 w-[18rem] rounded-md border border-gray-200 bg-white p-3 shadow-lg sm:w-80">
+              <div className="mb-2 text-xs font-semibold text-gray-500">Notificacoes</div>
               {notifications.length === 0 && (
                 <div className="text-xs text-gray-500">Sem notificacoes recentes.</div>
               )}
-              <div className="space-y-2 max-h-64 overflow-auto">
+              <div className="max-h-64 space-y-2 overflow-auto">
                 {notifications.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => handleMarkRead(item.id)}
-                    className={`w-full text-left text-sm p-2 rounded-md border ${
+                    className={`w-full rounded-md border p-2 text-left text-sm ${
                       item.read_at ? "border-gray-100 text-gray-500" : "border-blue-100"
                     }`}
                   >
@@ -106,7 +108,9 @@ export function Topbar() {
               </div>
             </div>
           )}
-          <span>{user?.email ?? "Usuario autenticado"}</span>
+          <span className="max-w-[150px] truncate sm:max-w-[220px] md:max-w-none">
+            {user?.email ?? "Usuario autenticado"}
+          </span>
           <Button variant="outline" onClick={signOut}>
             Sair
           </Button>

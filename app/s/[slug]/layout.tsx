@@ -46,7 +46,7 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Topbar />
-        <main className="flex-1 p-6 bg-gray-50">{children}</main>
+        <main className="flex-1 bg-gray-50 p-3 sm:p-4 md:p-6">{children}</main>
       </div>
     </div>
   );
