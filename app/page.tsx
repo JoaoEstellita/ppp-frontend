@@ -278,6 +278,9 @@ export default function LandingPage() {
             <button onClick={() => router.push("/login")} className="hover:text-gray-900">
               Entrar como sindicato
             </button>
+            <button onClick={() => router.push("/status")} className="hover:text-gray-900">
+              Status operacional
+            </button>
           </div>
         </div>
       </footer>

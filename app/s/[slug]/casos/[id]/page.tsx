@@ -292,6 +292,131 @@ function DownloadPdfButton({ slug, caseId, docId }: { slug: string; caseId: stri
   );
 }
 
+type TimelineEventTone = "default" | "info" | "success" | "warning" | "danger";
+
+type TimelineEvent = {
+  id: string;
+  at: string;
+  title: string;
+  detail: string;
+  tone: TimelineEventTone;
+};
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("pt-BR");
+}
+
+function getSlaByStatus(status: CaseStatus): {
+  title: string;
+  target: string;
+  nextAction: string;
+} {
+  switch (status) {
+    case "awaiting_payment":
+      return {
+        title: "Etapa: aguardando pagamento",
+        target: "SLA operacional: confirmacao em ate 30 minutos apos o pagamento.",
+        nextAction: "Se ja pagou e nao atualizou, clique em Recarregar status.",
+      };
+    case "awaiting_pdf":
+      return {
+        title: "Etapa: aguardando envio do PPP",
+        target: "SLA inicia apos upload do PDF.",
+        nextAction: "Envie o PDF para liberar o processamento.",
+      };
+    case "ready_to_process":
+      return {
+        title: "Etapa: pronto para enviar",
+        target: "SLA operacional: envio imediato ao n8n apos clicar em Enviar para analise.",
+        nextAction: "Clique em Enviar para analise.",
+      };
+    case "processing":
+    case "paid_processing":
+      return {
+        title: "Etapa: processamento em andamento",
+        target: "SLA operacional: retorno tecnico entre 5 e 15 minutos.",
+        nextAction: "Aguarde ou recarregue o status em alguns minutos.",
+      };
+    case "done":
+      return {
+        title: "Etapa: concluido",
+        target: "SLA cumprido. Resultado final disponivel para download.",
+        nextAction: "Baixe o PDF final e revise o parecer.",
+      };
+    case "error":
+      return {
+        title: "Etapa: erro operacional",
+        target: "SLA de recuperacao: tentativa imediata apos ajuste ou reenvio.",
+        nextAction: "Siga o bloco 'O que fazer agora' e tente novamente.",
+      };
+    case "pending_info":
+      return {
+        title: "Etapa: pendencias",
+        target: "SLA pausado ate regularizacao dos dados.",
+        nextAction: "Atualize os dados do cadastro e reenviar.",
+      };
+    default:
+      return {
+        title: "Etapa: em acompanhamento",
+        target: "SLA operacional conforme etapa atual.",
+        nextAction: "Recarregue o status se necessario.",
+      };
+  }
+}
+
+function getOperationalNextSteps(errorCode: string, hasPppInput: boolean): string[] {
+  const baseSteps = [
+    "Recarregue o status para confirmar o estado mais recente.",
+    "Se o problema persistir, acione o suporte com uma descricao objetiva do erro.",
+  ];
+  switch (errorCode) {
+    case "ocr_size_limit":
+      return [
+        "Reduza o tamanho do arquivo (ideal ate 5MB) e reenvie o PDF.",
+        "Prefira PDF nativo ou digitalizado em preto e branco com 150-200 DPI.",
+        ...baseSteps,
+      ];
+    case "download_failed":
+      return [
+        "Reenvie o PDF para atualizar o arquivo no armazenamento.",
+        "Evite arquivo protegido por senha ou corrompido.",
+        ...baseSteps,
+      ];
+    case "ocr_failed":
+      return [
+        "Reenvie um PDF com melhor nitidez, sem cortes e sem inclinacao.",
+        "Se o arquivo vier de foto, gere um PDF mais limpo antes do upload.",
+        ...baseSteps,
+      ];
+    case "conflict_detected":
+    case "worker_cpf_conflict":
+      return [
+        "Revise os dados do cadastro (nome/CPF/CNPJ) e corrija os campos divergentes.",
+        "Reenvie o PDF apos salvar as correcoes.",
+        ...baseSteps,
+      ];
+    case "validation_failed":
+      return [
+        "Valide os dados obrigatorios do cadastro e reenvie o documento.",
+        "Se houver campos faltantes no PPP, solicite nova emissao do documento.",
+        ...baseSteps,
+      ];
+    default:
+      return hasPppInput
+        ? [
+            "Reenvie o PDF para disparar nova tentativa de processamento.",
+            ...baseSteps,
+          ]
+        : [
+            "Envie o PDF do PPP para iniciar o processamento.",
+            ...baseSteps,
+          ];
+  }
+}
+
 export default function CaseDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -884,6 +1009,88 @@ export default function CaseDetailPage() {
       ? "DIVERGENCIA NO CPF"
       : "ERRO DE PROCESSAMENTO";
   const showErrorBanner = status === "error" || hasErrorPayload;
+  const slaInfo = getSlaByStatus(status);
+  const nextSteps = getOperationalNextSteps(effectiveErrorCode, hasPppInput);
+  const timelineEvents = (() => {
+    const events: TimelineEvent[] = [];
+    const push = (
+      id: string,
+      at: string | null | undefined,
+      title: string,
+      detail: string,
+      tone: TimelineEventTone = "default"
+    ) => {
+      if (!at) return;
+      const timestamp = new Date(at).getTime();
+      if (Number.isNaN(timestamp)) return;
+      events.push({ id, at, title, detail, tone });
+    };
+
+    push(
+      "case-created",
+      caseRecord.createdAt,
+      "Caso criado",
+      "Cadastro inicial do trabalhador e empresa.",
+      "default"
+    );
+    push(
+      "case-updated",
+      caseRecord.updatedAt,
+      "Ultima atualizacao",
+      "Registro geral de alteracao do caso.",
+      "default"
+    );
+    push(
+      "submit-attempt",
+      caseRecord.last_submit_at,
+      "Enviado para analise",
+      `Tentativas de envio: ${caseRecord.submit_attempts ?? 0}.`,
+      "info"
+    );
+    push(
+      "processing-started",
+      caseRecord.processing_started_at,
+      "Processamento iniciado",
+      "Documento recebido no fluxo de processamento.",
+      "info"
+    );
+    push(
+      "callback-received",
+      caseRecord.last_n8n_callback_at,
+      "Callback recebido",
+      `Retorno do n8n com status: ${caseRecord.last_n8n_status || "-"}.`,
+      caseRecord.last_n8n_status === "success" ? "success" : caseRecord.last_n8n_status === "error" ? "danger" : "info"
+    );
+    push(
+      "error",
+      caseRecord.last_error_at,
+      "Falha operacional",
+      caseRecord.last_error_message || caseRecord.last_n8n_error || "Erro registrado no processamento.",
+      "danger"
+    );
+
+    (workflowLogs || []).forEach((log) => {
+      push(
+        `workflow-${log.id}`,
+        log.created_at,
+        `Workflow: ${log.step}`,
+        `${log.status || "sem status"}${log.message ? ` - ${log.message}` : ""}`,
+        log.status === "success" ? "success" : log.status === "error" ? "danger" : "default"
+      );
+    });
+
+    const dedup = new Map<string, TimelineEvent>();
+    events.forEach((event) => {
+      const key = `${event.title}-${event.at}`;
+      if (!dedup.has(key)) {
+        dedup.set(key, event);
+      }
+    });
+
+    return Array.from(dedup.values()).sort((a, b) => {
+      return new Date(a.at).getTime() - new Date(b.at).getTime();
+    });
+  })();
 
   return (
     <div className="space-y-6">
@@ -903,6 +1110,45 @@ export default function CaseDetailPage() {
           <p className="text-gray-900">{company?.name || "-"}</p>
           <p className="text-sm text-gray-600">{company?.cnpj || "-"}</p>
         </div>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 space-y-2">
+        <h3 className="text-sm font-semibold text-blue-900">{slaInfo.title}</h3>
+        <p className="text-sm text-blue-800">{slaInfo.target}</p>
+        <p className="text-xs text-blue-700">Proxima acao recomendada: {slaInfo.nextAction}</p>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Linha do tempo do caso</h3>
+        {timelineEvents.length === 0 ? (
+          <p className="text-sm text-gray-500">Ainda sem eventos registrados para este caso.</p>
+        ) : (
+          <ol className="space-y-3">
+            {timelineEvents.map((event) => (
+              <li key={event.id} className="rounded-md border border-gray-200 px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span
+                    className={`text-sm font-semibold ${
+                      event.tone === "danger"
+                        ? "text-red-700"
+                        : event.tone === "success"
+                        ? "text-green-700"
+                        : event.tone === "warning"
+                        ? "text-amber-700"
+                        : event.tone === "info"
+                        ? "text-blue-700"
+                        : "text-gray-800"
+                    }`}
+                  >
+                    {event.title}
+                  </span>
+                  <span className="text-xs text-gray-500">{formatDateTime(event.at)}</span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">{event.detail}</p>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       {showErrorBanner && (
@@ -965,6 +1211,14 @@ export default function CaseDetailPage() {
             <p>Etapa: {caseRecord.last_error_step || "-"}</p>
             <p>Status N8N: {caseRecord.last_n8n_status || "-"}</p>
             <p>Quando: {caseRecord.last_error_at ? new Date(caseRecord.last_error_at).toLocaleString() : "-"}</p>
+          </div>
+          <div className="bg-white rounded-md p-3 border border-red-100 text-xs text-gray-700">
+            <p className="font-semibold text-gray-800">O que fazer agora</p>
+            <ul className="list-disc pl-4 mt-2 space-y-1">
+              {nextSteps.map((step, index) => (
+                <li key={`${step}-${index}`}>{step}</li>
+              ))}
+            </ul>
           </div>
           {effectiveErrorCode === "worker_cpf_conflict" && (
             <Button
