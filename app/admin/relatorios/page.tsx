@@ -79,7 +79,7 @@ export default function AdminReportsPage() {
 
   const loadBillingControl = useCallback(async (days: number, selectedMonth?: string) => {
     try {
-      const data = await getAdminBillingControl(days, selectedMonth);
+      const data = await getAdminBillingControl({ periodDays: days, yearMonth: selectedMonth, perOrgLimit: 15 });
       setBillingControl(data);
     } catch (err) {
       console.error("Erro ao carregar controle de cobranca:", err);
@@ -583,8 +583,8 @@ export default function AdminReportsPage() {
                 <div>Cancelados: {billingControl.payment_funnel.canceled_count}</div>
               </div>
             </div>
-            <div className="rounded border border-gray-200 p-3">
-              <div className="text-sm font-semibold text-gray-900 mb-2">Modelo alvo (single source)</div>
+          <div className="rounded border border-gray-200 p-3">
+            <div className="text-sm font-semibold text-gray-900 mb-2">Modelo alvo (single source)</div>
               <div className="space-y-1 text-xs text-gray-700">
                 <div>Contrato: <span className="font-mono">{billingControl.billing_model.single_source_of_truth.contract_entity}</span></div>
                 <div>Receita: <span className="font-mono">{billingControl.billing_model.single_source_of_truth.revenue_entity}</span></div>
@@ -601,6 +601,44 @@ export default function AdminReportsPage() {
                 <li key={item}>{item}</li>
               ))}
             </ul>
+          </div>
+
+          <div className="rounded border border-gray-200 p-3 md:col-span-2">
+            <div className="text-sm font-semibold text-gray-900 mb-2">Top sindicatos em risco operacional-financeiro</div>
+            {billingControl.per_org.length === 0 ? (
+              <p className="text-xs text-gray-500">Sem dados por sindicato no periodo selecionado.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-gray-500">
+                      <th className="text-left py-1 pr-2">Sindicato</th>
+                      <th className="text-left py-1 pr-2">Aprovacao</th>
+                      <th className="text-left py-1 pr-2">Pend. +24h</th>
+                      <th className="text-left py-1 pr-2">GMV mes</th>
+                      <th className="text-left py-1 pr-2">Margem mes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billingControl.per_org.map((org) => (
+                      <tr key={org.org_id} className="border-b last:border-b-0">
+                        <td className="py-1 pr-2 text-gray-800">
+                          {org.org_name || org.org_slug || org.org_id}
+                        </td>
+                        <td className="py-1 pr-2 text-gray-700">{formatPercent(org.approval_rate * 100)}</td>
+                        <td className={`py-1 pr-2 ${org.pending_over_24h > 0 ? "text-red-700 font-semibold" : "text-gray-700"}`}>
+                          {org.pending_over_24h}
+                        </td>
+                        <td className="py-1 pr-2 text-gray-700">{formatMoney(org.snapshot_gross_amount)}</td>
+                        <td className={`py-1 pr-2 ${org.snapshot_operational_margin >= 0 ? "text-gray-700" : "text-red-700 font-semibold"}`}>
+                          {formatMoney(org.snapshot_operational_margin)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

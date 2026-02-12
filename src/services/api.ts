@@ -382,6 +382,27 @@ export type AdminBillingControl = {
     operational_cost_total: number;
     operational_margin: number;
   };
+  per_org: Array<{
+    org_id: string;
+    org_name: string | null;
+    org_slug: string | null;
+    org_status: string | null;
+    total_attempted: number;
+    approved_count: number;
+    pending_count: number;
+    failed_count: number;
+    canceled_count: number;
+    approval_rate: number;
+    approved_amount: number;
+    pending_amount: number;
+    failed_amount: number;
+    pending_over_24h: number;
+    snapshot_paid_cases: number;
+    snapshot_gross_amount: number;
+    snapshot_share_amount: number;
+    snapshot_platform_revenue: number;
+    snapshot_operational_margin: number;
+  }>;
   action_items: string[];
 };
 
@@ -1070,14 +1091,23 @@ export async function getAdminOpsOverview(periodDays = 7): Promise<AdminOpsOverv
   return data as AdminOpsOverview;
 }
 
-export async function getAdminBillingControl(periodDays = 30, yearMonth?: string): Promise<AdminBillingControl> {
-  const days = Number.isFinite(periodDays)
-    ? Math.max(1, Math.min(180, Math.floor(periodDays)))
+export async function getAdminBillingControl(options?: {
+  periodDays?: number;
+  yearMonth?: string;
+  orgId?: string;
+  perOrgLimit?: number;
+}): Promise<AdminBillingControl> {
+  const days = Number.isFinite(options?.periodDays)
+    ? Math.max(1, Math.min(180, Math.floor(options?.periodDays as number)))
     : 30;
-  const params = new URLSearchParams();
-  params.set("period_days", String(days));
-  if (yearMonth) params.set("year_month", yearMonth);
-  const res = await apiFetch(`/admin/billing/control?${params.toString()}`);
+  const query = new URLSearchParams();
+  query.set("period_days", String(days));
+  if (options?.yearMonth) query.set("year_month", options.yearMonth);
+  if (options?.orgId) query.set("org_id", options.orgId);
+  if (Number.isFinite(options?.perOrgLimit)) {
+    query.set("per_org_limit", String(Math.max(1, Math.min(100, Math.floor(options?.perOrgLimit as number)))));
+  }
+  const res = await apiFetch(`/admin/billing/control?${query.toString()}`);
   const data = await handleJsonResponse(res);
   return data as AdminBillingControl;
 }
