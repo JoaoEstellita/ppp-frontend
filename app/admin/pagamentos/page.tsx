@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AdminPayment, getAdminPayments } from "@/src/services/api";
 import { Button } from "@/components/Button";
 
@@ -29,10 +30,18 @@ function formatMoney(value: number | null | undefined): string {
 }
 
 export default function AdminPaymentsPage() {
+  const searchParams = useSearchParams();
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [orgFilter, setOrgFilter] = useState("");
+
+  useEffect(() => {
+    const orgId = searchParams?.get("org_id");
+    const status = searchParams?.get("status");
+    if (orgId) setOrgFilter(orgId);
+    if (status) setStatusFilter(status);
+  }, [searchParams]);
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
@@ -161,4 +170,3 @@ export default function AdminPaymentsPage() {
     </div>
   );
 }
-

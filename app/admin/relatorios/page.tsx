@@ -10,6 +10,7 @@ import {
   getAdminBillingControl,
   getAdminOpsOverview,
   getBillingMonths,
+  sendAdminBillingControlTestEmail,
 } from "@/src/services/api";
 
 const OPERATIONAL_COST_PER_CASE = Number(process.env.NEXT_PUBLIC_OPERATIONAL_COST_PER_CASE || 0);
@@ -43,6 +44,8 @@ export default function AdminReportsPage() {
   const [loading, setLoading] = useState(true);
   const [opsLoading, setOpsLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [sendingAlertEmail, setSendingAlertEmail] = useState(false);
+  const [alertEmailTo, setAlertEmailTo] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const load = useCallback(async (selectedMonth?: string) => {
@@ -116,6 +119,37 @@ export default function AdminReportsPage() {
       setMessage({ type: "error", text: "Erro ao gerar snapshot mensal." });
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleSendAlertEmail() {
+    if (!billingControl) {
+      setMessage({ type: "error", text: "Carregue o controle de cobranca antes de enviar email." });
+      return;
+    }
+    const to = alertEmailTo.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+      setMessage({ type: "error", text: "Informe um email valido para teste de alerta." });
+      return;
+    }
+
+    setSendingAlertEmail(true);
+    setMessage(null);
+    try {
+      const res = await sendAdminBillingControlTestEmail({
+        to,
+        period_days: billingControl.period_days,
+        year_month: billingControl.year_month,
+        payment_funnel: billingControl.payment_funnel,
+        monthly_snapshot: billingControl.monthly_snapshot,
+        action_items: billingControl.action_items,
+      });
+      setMessage({ type: "success", text: res.message || "Email de teste enviado com sucesso." });
+    } catch (err) {
+      console.error("Erro ao enviar email de alerta:", err);
+      setMessage({ type: "error", text: "Falha ao enviar email de teste de alerta." });
+    } finally {
+      setSendingAlertEmail(false);
     }
   }
 
@@ -548,6 +582,28 @@ export default function AdminReportsPage() {
       {billingControl && (
         <div className="bg-white rounded-lg shadow p-4 space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Controle unico de cobranca</h3>
+          <div className="rounded border border-gray-200 p-3">
+            <div className="text-sm font-semibold text-gray-900 mb-2">Teste de alerta por email</div>
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="min-w-[280px]">
+                <label className="block text-xs text-gray-500 mb-1">Destino</label>
+                <input
+                  value={alertEmailTo}
+                  onChange={(e) => setAlertEmailTo(e.target.value)}
+                  placeholder="ops@seudominio.com"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <Button
+                onClick={handleSendAlertEmail}
+                disabled={sendingAlertEmail}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                {sendingAlertEmail ? "Enviando..." : "Enviar alerta de teste"}
+              </Button>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
             <div className="rounded border border-gray-200 p-3">
               <div className="text-xs text-gray-500">Tentativas de pagamento</div>
@@ -617,6 +673,7 @@ export default function AdminReportsPage() {
                       <th className="text-left py-1 pr-2">Pend. +24h</th>
                       <th className="text-left py-1 pr-2">GMV mes</th>
                       <th className="text-left py-1 pr-2">Margem mes</th>
+                      <th className="text-left py-1 pr-2">Acoes</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -632,6 +689,26 @@ export default function AdminReportsPage() {
                         <td className="py-1 pr-2 text-gray-700">{formatMoney(org.snapshot_gross_amount)}</td>
                         <td className={`py-1 pr-2 ${org.snapshot_operational_margin >= 0 ? "text-gray-700" : "text-red-700 font-semibold"}`}>
                           {formatMoney(org.snapshot_operational_margin)}
+                        </td>
+                        <td className="py-1 pr-2">
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              onClick={() => {
+                                window.location.href = `/admin/pagamentos?org_id=${encodeURIComponent(org.org_id)}`;
+                              }}
+                              className="rounded bg-gray-100 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-200"
+                            >
+                              Pagamentos
+                            </button>
+                            <button
+                              onClick={() => {
+                                window.location.href = `/admin/casos?org_id=${encodeURIComponent(org.org_id)}&status=error`;
+                              }}
+                              className="rounded bg-red-100 px-2 py-1 text-[11px] text-red-700 hover:bg-red-200"
+                            >
+                              Casos erro
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

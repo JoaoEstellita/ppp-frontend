@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import {
@@ -64,16 +64,28 @@ function formatDate(dateStr: string | null | undefined): string {
 
 export default function AdminCasesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [cases, setCases] = useState<AdminCaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [orgFilter, setOrgFilter] = useState<string>("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    const status = searchParams?.get("status");
+    const orgId = searchParams?.get("org_id");
+    if (status) setFilter(status);
+    if (orgId) setOrgFilter(orgId);
+  }, [searchParams]);
 
   const loadCases = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await adminListCases(filter);
+      const data = await adminListCases({
+        status: filter,
+        orgId: orgFilter || undefined,
+      });
       setCases(data);
     } catch (err) {
       console.error("Erro ao carregar casos:", err);
@@ -81,7 +93,7 @@ export default function AdminCasesPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, orgFilter]);
 
   useEffect(() => {
     loadCases();
@@ -106,6 +118,12 @@ export default function AdminCasesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Todos os Casos</h2>
         <div className="flex items-center gap-2">
+          <input
+            value={orgFilter}
+            onChange={(e) => setOrgFilter(e.target.value.trim())}
+            placeholder="Org ID (opcional)"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-64"
+          />
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

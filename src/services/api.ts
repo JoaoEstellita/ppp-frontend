@@ -1810,11 +1810,31 @@ export type AdminCaseDetail = {
 /**
  * Admin lista todos os casos
  */
-export async function adminListCases(status?: string): Promise<AdminCaseItem[]> {
-  const suffix = status && status !== "all" ? `?status=${status}` : "";
+export async function adminListCases(params?: { status?: string; orgId?: string }): Promise<AdminCaseItem[]> {
+  const query = new URLSearchParams();
+  if (params?.status && params.status !== "all") query.set("status", params.status);
+  if (params?.orgId) query.set("org_id", params.orgId);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
   const res = await apiFetch(`/admin/cases${suffix}`);
   const data = await handleJsonResponse(res);
   return Array.isArray(data) ? data : [];
+}
+
+export async function sendAdminBillingControlTestEmail(payload: {
+  to: string;
+  period_days: number;
+  year_month: string;
+  payment_funnel: AdminBillingControl["payment_funnel"];
+  monthly_snapshot: AdminBillingControl["monthly_snapshot"];
+  action_items: string[];
+}): Promise<{ ok: boolean; message?: string }> {
+  const res = await apiFetch("/admin/billing/control/test-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; message?: string };
 }
 
 /**
