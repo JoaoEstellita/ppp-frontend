@@ -1813,6 +1813,7 @@ export async function createPublicCase(params: {
   companyCNPJ: string;
   workerEmail?: string;
   unionCode?: string;
+  consentLGPD: boolean;
   file: File;
 }): Promise<PublicCaseResponse> {
   const formData = new FormData();
@@ -1826,6 +1827,7 @@ export async function createPublicCase(params: {
   if (params.unionCode) {
     formData.append('union_code', params.unionCode);
   }
+  formData.append('consentLGPD', params.consentLGPD ? 'true' : 'false');
   formData.append('file', params.file);
 
   const res = await apiFetch('/public/cases', {

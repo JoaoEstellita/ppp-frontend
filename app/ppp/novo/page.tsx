@@ -234,6 +234,7 @@ export default function PublicCaseNewPage() {
         companyName: trimmedCompanyName,
         companyCNPJ: cnpjDigits,
         unionCode: normalizedCode || undefined,
+        consentLGPD: lgpdAccepted,
         file: selectedFile,
       });
 
