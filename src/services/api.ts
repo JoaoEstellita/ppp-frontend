@@ -344,6 +344,47 @@ export type AdminOpsOverview = {
   };
 };
 
+export type AdminBillingControl = {
+  period_days: number;
+  year_month: string;
+  window_start: string;
+  window_end: string;
+  billing_model: {
+    current: string;
+    target: string;
+    single_source_of_truth: {
+      contract_entity: string;
+      revenue_entity: string;
+      settlement_entity: string;
+      audit_entity: string;
+    };
+  };
+  payment_funnel: {
+    total_attempted: number;
+    approved_count: number;
+    pending_count: number;
+    failed_count: number;
+    canceled_count: number;
+    approval_rate: number;
+    approved_amount: number;
+    pending_amount: number;
+    failed_amount: number;
+    pending_over_24h: number;
+  };
+  monthly_snapshot: {
+    orgs_with_snapshot: number;
+    active_orgs: number;
+    paid_cases: number;
+    gross_amount: number;
+    share_amount: number;
+    platform_revenue: number;
+    operational_cost_per_case: number;
+    operational_cost_total: number;
+    operational_margin: number;
+  };
+  action_items: string[];
+};
+
 function normalizeCaseStatus(rawStatus: unknown): { status: CaseStatus; raw: string | null } {
   if (rawStatus === undefined || rawStatus === null) {
     return { status: "awaiting_payment", raw: null };
@@ -1027,6 +1068,18 @@ export async function getAdminOpsOverview(periodDays = 7): Promise<AdminOpsOverv
   const res = await apiFetch(`/admin/ops/overview?period_days=${days}`);
   const data = await handleJsonResponse(res);
   return data as AdminOpsOverview;
+}
+
+export async function getAdminBillingControl(periodDays = 30, yearMonth?: string): Promise<AdminBillingControl> {
+  const days = Number.isFinite(periodDays)
+    ? Math.max(1, Math.min(180, Math.floor(periodDays)))
+    : 30;
+  const params = new URLSearchParams();
+  params.set("period_days", String(days));
+  if (yearMonth) params.set("year_month", yearMonth);
+  const res = await apiFetch(`/admin/billing/control?${params.toString()}`);
+  const data = await handleJsonResponse(res);
+  return data as AdminBillingControl;
 }
 
 export async function getBillingMonths(yearMonth?: string): Promise<BillingMonth[]> {

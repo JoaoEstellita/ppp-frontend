@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/Button";
 import {
+  AdminBillingControl,
   AdminOpsOverview,
   BillingMonth,
   generateBillingMonths,
+  getAdminBillingControl,
   getAdminOpsOverview,
   getBillingMonths,
 } from "@/src/services/api";
@@ -35,6 +37,7 @@ function formatPercent(value: number | null | undefined): string {
 export default function AdminReportsPage() {
   const [months, setMonths] = useState<BillingMonth[]>([]);
   const [opsOverview, setOpsOverview] = useState<AdminOpsOverview | null>(null);
+  const [billingControl, setBillingControl] = useState<AdminBillingControl | null>(null);
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [opsPeriodDays, setOpsPeriodDays] = useState(7);
   const [loading, setLoading] = useState(true);
@@ -74,9 +77,24 @@ export default function AdminReportsPage() {
     }
   }, []);
 
+  const loadBillingControl = useCallback(async (days: number, selectedMonth?: string) => {
+    try {
+      const data = await getAdminBillingControl(days, selectedMonth);
+      setBillingControl(data);
+    } catch (err) {
+      console.error("Erro ao carregar controle de cobranca:", err);
+      setBillingControl(null);
+      setMessage({ type: "error", text: "Erro ao carregar controle de cobranca." });
+    }
+  }, []);
+
   useEffect(() => {
     loadOpsOverview(opsPeriodDays);
   }, [loadOpsOverview, opsPeriodDays]);
+
+  useEffect(() => {
+    loadBillingControl(opsPeriodDays, yearMonth);
+  }, [loadBillingControl, opsPeriodDays, yearMonth]);
 
   async function handleGenerate() {
     if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
@@ -237,6 +255,9 @@ export default function AdminReportsPage() {
           <Button onClick={() => loadOpsOverview(opsPeriodDays)} className="bg-gray-100 hover:bg-gray-200 text-gray-700">
             Atualizar operacao
           </Button>
+          <Button onClick={() => loadBillingControl(opsPeriodDays, yearMonth)} className="bg-gray-100 hover:bg-gray-200 text-gray-700">
+            Atualizar cobranca
+          </Button>
           <Button onClick={() => load(yearMonth)} className="bg-gray-100 hover:bg-gray-200 text-gray-700">
             Atualizar faturamento
           </Button>
@@ -265,8 +286,12 @@ export default function AdminReportsPage() {
 
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-xs text-gray-500">Controle unico de cobranca</div>
-            <div className="mt-2 text-sm font-semibold text-gray-900">Modelo atual: pay-per-case</div>
-            <div className="mt-1 text-xs text-gray-600">Assinatura unificada: em implantacao por fases</div>
+            <div className="mt-2 text-sm font-semibold text-gray-900">
+              Modelo atual: {billingControl?.billing_model.current || "pay_per_case"}
+            </div>
+            <div className="mt-1 text-xs text-gray-600">
+              Alvo: {billingControl?.billing_model.target || "subscription_plus_usage"}
+            </div>
             <div className="mt-3 text-xs text-gray-600">
               GMV: <span className="font-semibold">{formatMoney(opsOverview.finance.gmv_total)}</span>
             </div>
@@ -519,6 +544,66 @@ export default function AdminReportsPage() {
           </div>
         </div>
       </div>
+
+      {billingControl && (
+        <div className="bg-white rounded-lg shadow p-4 space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Controle unico de cobranca</h3>
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="rounded border border-gray-200 p-3">
+              <div className="text-xs text-gray-500">Tentativas de pagamento</div>
+              <div className="text-xl font-semibold text-gray-900">{billingControl.payment_funnel.total_attempted}</div>
+            </div>
+            <div className="rounded border border-gray-200 p-3">
+              <div className="text-xs text-gray-500">Aprovacao</div>
+              <div className="text-xl font-semibold text-emerald-700">
+                {formatPercent(billingControl.payment_funnel.approval_rate * 100)}
+              </div>
+            </div>
+            <div className="rounded border border-gray-200 p-3">
+              <div className="text-xs text-gray-500">Pendentes +24h</div>
+              <div className={`text-xl font-semibold ${billingControl.payment_funnel.pending_over_24h > 0 ? "text-red-700" : "text-gray-900"}`}>
+                {billingControl.payment_funnel.pending_over_24h}
+              </div>
+            </div>
+            <div className="rounded border border-gray-200 p-3">
+              <div className="text-xs text-gray-500">Margem mensal</div>
+              <div className={`text-xl font-semibold ${billingControl.monthly_snapshot.operational_margin >= 0 ? "text-gray-900" : "text-red-700"}`}>
+                {formatMoney(billingControl.monthly_snapshot.operational_margin)}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="rounded border border-gray-200 p-3">
+              <div className="text-sm font-semibold text-gray-900 mb-2">Funnel financeiro</div>
+              <div className="space-y-1 text-xs text-gray-700">
+                <div>Aprovados: {billingControl.payment_funnel.approved_count} ({formatMoney(billingControl.payment_funnel.approved_amount)})</div>
+                <div>Pendentes: {billingControl.payment_funnel.pending_count} ({formatMoney(billingControl.payment_funnel.pending_amount)})</div>
+                <div>Falhos: {billingControl.payment_funnel.failed_count} ({formatMoney(billingControl.payment_funnel.failed_amount)})</div>
+                <div>Cancelados: {billingControl.payment_funnel.canceled_count}</div>
+              </div>
+            </div>
+            <div className="rounded border border-gray-200 p-3">
+              <div className="text-sm font-semibold text-gray-900 mb-2">Modelo alvo (single source)</div>
+              <div className="space-y-1 text-xs text-gray-700">
+                <div>Contrato: <span className="font-mono">{billingControl.billing_model.single_source_of_truth.contract_entity}</span></div>
+                <div>Receita: <span className="font-mono">{billingControl.billing_model.single_source_of_truth.revenue_entity}</span></div>
+                <div>Liquidação: <span className="font-mono">{billingControl.billing_model.single_source_of_truth.settlement_entity}</span></div>
+                <div>Auditoria: <span className="font-mono">{billingControl.billing_model.single_source_of_truth.audit_entity}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded border border-gray-200 p-3">
+            <div className="text-sm font-semibold text-gray-900 mb-2">Acoes recomendadas</div>
+            <ul className="list-disc pl-5 text-xs text-gray-700 space-y-1">
+              {billingControl.action_items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
