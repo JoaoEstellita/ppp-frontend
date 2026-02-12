@@ -11,6 +11,38 @@ import {
   SupportCaseItem,
 } from "@/src/services/api";
 
+const SUPPORT_RUNBOOK: Array<{
+  code: string;
+  meaning: string;
+  actionNow: string;
+  escalation: string;
+}> = [
+  {
+    code: "n8n_webhook_failed / HTTP 500 / HTTP 502",
+    meaning: "Falha transitoria de gateway ou timeout apos submit.",
+    actionNow: "Conferir se o status ficou 'submitted' e aguardar callback por 2-3 minutos antes de novo envio.",
+    escalation: "Sem callback apos esse prazo: reenviar 1x e abrir incidente com case_id e horario.",
+  },
+  {
+    code: "conflict_detected",
+    meaning: "Divergencia entre cadastro preenchido e leitura do documento.",
+    actionNow: "Corrigir Nome/CPF/Empresa/CNPJ ou reenviar PDF legivel.",
+    escalation: "Persistindo apos correcao, encaminhar PDF para suporte tecnico.",
+  },
+  {
+    code: "ocr_size_limit / arquivo_invalido",
+    meaning: "Arquivo acima do limite operacional ou ilegivel.",
+    actionNow: "Solicitar novo PDF menor e com melhor qualidade.",
+    escalation: "Se usuario nao conseguir, suporte interno faz tratamento manual.",
+  },
+  {
+    code: "invalid_callback_token",
+    meaning: "Callback do n8n bloqueado por token invalido.",
+    actionNow: "Validar N8N_CALLBACK_TOKEN no backend e no workflow.",
+    escalation: "Rotacionar token e revalidar callback imediatamente.",
+  },
+];
+
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "-";
   try {
@@ -150,6 +182,35 @@ export default function AdminSupportPage() {
           <div className="text-xs text-gray-500">Casos com 3+ retries</div>
           <div className="text-2xl font-bold text-red-700">{highRetryCount}</div>
           <div className="text-xs text-gray-400 mt-1">Em processamento: {processingCount}</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        <h3 className="text-lg font-semibold text-gray-900">Runbook de suporte</h3>
+        <p className="text-sm text-gray-600">
+          Procedimento padrao para reduzir retrabalho, manter SLA e escalar no momento correto.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium text-gray-600">Codigo / sinal</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-600">Significado</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-600">Acao imediata</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-600">Escalonamento</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {SUPPORT_RUNBOOK.map((item) => (
+                <tr key={item.code}>
+                  <td className="px-3 py-2 text-gray-800 font-mono">{item.code}</td>
+                  <td className="px-3 py-2 text-gray-700">{item.meaning}</td>
+                  <td className="px-3 py-2 text-gray-700">{item.actionNow}</td>
+                  <td className="px-3 py-2 text-gray-700">{item.escalation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

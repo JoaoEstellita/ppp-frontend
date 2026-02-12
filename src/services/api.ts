@@ -296,6 +296,54 @@ export type AdminUsageEvent = {
   created_at: string;
 };
 
+export type AdminOpsOverview = {
+  period_days: number;
+  window_start: string;
+  window_end: string;
+  overview: {
+    created_cases: number;
+    done_cases: number;
+    error_cases: number;
+    submit_attempts: number;
+    callback_success_count: number;
+    callback_error_count: number;
+    callback_latency_seconds_p50: number | null;
+    callback_latency_seconds_p95: number | null;
+  };
+  queues: {
+    open_support_requests: number;
+    open_cases_total: number;
+  };
+  sla: {
+    thresholds: {
+      awaiting_payment_hours: number;
+      awaiting_pdf_hours: number;
+      processing_minutes: number;
+      error_open_hours: number;
+    };
+    breaches: {
+      awaiting_payment: number;
+      awaiting_pdf: number;
+      processing: number;
+      error_open: number;
+    };
+  };
+  finance: {
+    paid_count: number;
+    gmv_total: number;
+    union_transfer_per_case: number;
+    union_transfer_total: number;
+    platform_revenue: number;
+    operational_cost_per_case: number;
+    operational_cost_total: number;
+    operational_margin: number;
+  };
+  errors: {
+    top_error_codes: Array<{ code: string; count: number }>;
+    top_error_steps: Array<{ step: string; count: number }>;
+  };
+};
+
 function normalizeCaseStatus(rawStatus: unknown): { status: CaseStatus; raw: string | null } {
   if (rawStatus === undefined || rawStatus === null) {
     return { status: "awaiting_payment", raw: null };
@@ -970,6 +1018,15 @@ export async function getAdminUsage(params?: {
   const res = await apiFetch(`/admin/usage${suffix}`);
   const data = await handleJsonResponse(res);
   return Array.isArray(data) ? (data as AdminUsageEvent[]) : [];
+}
+
+export async function getAdminOpsOverview(periodDays = 7): Promise<AdminOpsOverview> {
+  const days = Number.isFinite(periodDays)
+    ? Math.max(1, Math.min(90, Math.floor(periodDays)))
+    : 7;
+  const res = await apiFetch(`/admin/ops/overview?period_days=${days}`);
+  const data = await handleJsonResponse(res);
+  return data as AdminOpsOverview;
 }
 
 export async function getBillingMonths(yearMonth?: string): Promise<BillingMonth[]> {
