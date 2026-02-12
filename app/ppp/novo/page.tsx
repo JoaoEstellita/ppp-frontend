@@ -85,6 +85,7 @@ export default function PublicCaseNewPage() {
   const [caseId, setCaseId] = useState<string | null>(null);
   const [lastCaseId, setLastCaseId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
+  const [lgpdAccepted, setLgpdAccepted] = useState(false);
 
   const finalPrice = normalizedCode ? DISCOUNT_PRICE : BASE_PRICE;
   const discountAmount = BASE_PRICE - finalPrice;
@@ -108,6 +109,7 @@ export default function PublicCaseNewPage() {
     hasFile &&
     fileWithinLimit &&
     codeReady &&
+    lgpdAccepted &&
     !submitting;
 
   useEffect(() => {
@@ -450,6 +452,17 @@ export default function PublicCaseNewPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">Proxima acao</h3>
               <p className="mt-2 text-sm text-slate-600">Ao continuar, o caso sera criado e o link de pagamento sera gerado.</p>
+              <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={lgpdAccepted}
+                  onChange={(event) => setLgpdAccepted(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  Declaro que li e autorizo o tratamento dos dados pessoais para analise do PPP, conforme a LGPD.
+                </span>
+              </label>
               <Button
                 onClick={handleCreateCase}
                 disabled={!canContinue}
@@ -457,6 +470,11 @@ export default function PublicCaseNewPage() {
               >
                 {submitting ? "Criando e gerando pagamento..." : "Continuar para pagamento"}
               </Button>
+              {!lgpdAccepted && (
+                <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                  Consentimento LGPD obrigatorio para prosseguir.
+                </p>
+              )}
               {!canContinue && (
                 <p className="mt-2 text-xs text-amber-700">
                   Preencha os campos obrigatorios, envie o PDF e valide (ou limpe) o codigo para continuar.
