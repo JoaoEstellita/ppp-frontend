@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/Button";
 import {
-  adminListSupportCases,
+  adminListSupportCasesAdvanced,
   adminResolveSupport,
   adminSubmitCase,
   adminSubmitBulk,
+  adminAssignSupportRequest,
+  adminUpdateSupportPriority,
+  adminAddSupportNote,
+  adminGetSupportHistory,
   SupportCaseItem,
+  SupportHistoryItem,
 } from "@/src/services/api";
 
 const SUPPORT_RUNBOOK: Array<{
@@ -62,15 +67,18 @@ export default function AdminSupportPage() {
   const [cases, setCases] = useState<SupportCaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "open" | "error" | "processing">("all");
+  const [queueFilter, setQueueFilter] = useState<"all" | "mine" | "unassigned">("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [historyByCase, setHistoryByCase] = useState<Record<string, SupportHistoryItem[]>>({});
+  const [historyOpenByCase, setHistoryOpenByCase] = useState<Record<string, boolean>>({});
 
   const loadCases = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await adminListSupportCases(filter);
+      const data = await adminListSupportCasesAdvanced({ status: filter, queue: queueFilter });
       setCases(data);
     } catch (err) {
       console.error("Erro ao carregar casos:", err);
@@ -78,7 +86,7 @@ export default function AdminSupportPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, queueFilter]);
 
   useEffect(() => {
     loadCases();
@@ -133,6 +141,88 @@ export default function AdminSupportPage() {
     }
   };
 
+  const handleAssignToMe = async (requestId: string) => {
+    setActionLoading(`assign-${requestId}`);
+    setMessage(null);
+    try {
+      await adminAssignSupportRequest(requestId);
+      setMessage({ type: "success", text: "Ticket atribuido para voce." });
+      await loadCases();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao atribuir ticket." });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnassign = async (requestId: string) => {
+    setActionLoading(`unassign-${requestId}`);
+    setMessage(null);
+    try {
+      await adminAssignSupportRequest(requestId, null);
+      setMessage({ type: "success", text: "Ticket removido da fila individual." });
+      await loadCases();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao remover atribuicao." });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePriority = async (
+    requestId: string,
+    priority: "low" | "normal" | "high" | "critical"
+  ) => {
+    setActionLoading(`priority-${requestId}`);
+    setMessage(null);
+    try {
+      await adminUpdateSupportPriority(requestId, priority);
+      setMessage({ type: "success", text: "Prioridade atualizada." });
+      await loadCases();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao atualizar prioridade." });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAddNote = async (requestId: string) => {
+    const note = window.prompt("Adicionar nota operacional (visivel no historico):");
+    if (!note || !note.trim()) return;
+
+    setActionLoading(`note-${requestId}`);
+    setMessage(null);
+    try {
+      await adminAddSupportNote(requestId, note.trim());
+      setMessage({ type: "success", text: "Nota registrada no historico." });
+      await loadCases();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao registrar nota." });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleHistory = async (caseId: string) => {
+    const current = !!historyOpenByCase[caseId];
+    if (current) {
+      setHistoryOpenByCase((prev) => ({ ...prev, [caseId]: false }));
+      return;
+    }
+    if (!historyByCase[caseId]) {
+      setActionLoading(`history-${caseId}`);
+      try {
+        const data = await adminGetSupportHistory(caseId, 30);
+        setHistoryByCase((prev) => ({ ...prev, [caseId]: data }));
+      } catch (err: any) {
+        setMessage({ type: "error", text: err.message || "Erro ao carregar historico." });
+      } finally {
+        setActionLoading(null);
+      }
+    }
+    setHistoryOpenByCase((prev) => ({ ...prev, [caseId]: true }));
+  };
+
   const supportOpenCount = cases.filter((item) => Boolean(item.support_request)).length;
   const processingCount = cases.filter((item) => item.case_status === "processing").length;
   const highRetryCount = cases.filter((item) => Number(item.retry_count || 0) >= 3).length;
@@ -151,6 +241,15 @@ export default function AdminSupportPage() {
             <option value="error">Somente status erro</option>
             <option value="open">Com solicitação aberta</option>
             <option value="processing">Em processamento</option>
+                    </select>
+          <select
+            value={queueFilter}
+            onChange={(e) => setQueueFilter(e.target.value as "all" | "mine" | "unassigned")}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          >
+            <option value="all">Fila: todos</option>
+            <option value="mine">Fila: meus tickets</option>
+            <option value="unassigned">Fila: nao atribuidos</option>
           </select>
           <Button
             onClick={loadCases}
@@ -284,7 +383,8 @@ export default function AdminSupportPage() {
               </thead>
               <tbody className="divide-y">
                 {cases.map((item) => (
-                  <tr key={item.case_id} className="hover:bg-gray-50">
+                  <Fragment key={item.case_id}>
+                  <tr className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <Link
                         href={`/admin/casos/${item.case_id}`}
@@ -332,6 +432,16 @@ export default function AdminSupportPage() {
                           <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
                             Solicitado
                           </span>
+                          {item.support_request.priority && (
+                            <span className="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                              {item.support_request.priority}
+                            </span>
+                          )}
+                          {item.support_request.sla_overdue && (
+                            <span className="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">
+                              SLA estourado
+                            </span>
+                          )}
                           {item.support_request.message && (
                             <div className="text-xs text-gray-500 mt-1 truncate max-w-32" title={item.support_request.message}>
                               &quot;{item.support_request.message}&quot;
@@ -352,6 +462,54 @@ export default function AdminSupportPage() {
                           {actionLoading === `submit-${item.case_id}` ? "..." : "Enviar para análise"}
                         </button>
                         {item.support_request && (
+                          <>
+                          <button
+                            onClick={() => handleToggleHistory(item.case_id)}
+                            disabled={actionLoading === `history-${item.case_id}`}
+                            className="px-3 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                          >
+                            {historyOpenByCase[item.case_id] ? "Ocultar histórico" : "Histórico"}
+                          </button>
+                          <select
+                            value={item.support_request.priority || "normal"}
+                            onChange={(e) =>
+                              handlePriority(
+                                item.support_request!.id,
+                                e.target.value as "low" | "normal" | "high" | "critical"
+                              )
+                            }
+                            className="text-xs rounded border border-gray-300 px-2 py-1"
+                            disabled={actionLoading === `priority-${item.support_request!.id}`}
+                          >
+                            <option value="low">low</option>
+                            <option value="normal">normal</option>
+                            <option value="high">high</option>
+                            <option value="critical">critical</option>
+                          </select>
+                          {item.support_request.is_unassigned ? (
+                            <button
+                              onClick={() => handleAssignToMe(item.support_request!.id)}
+                              disabled={actionLoading === `assign-${item.support_request!.id}`}
+                              className="px-3 py-1 text-xs font-medium rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 disabled:opacity-50 transition-colors"
+                            >
+                              Assumir
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUnassign(item.support_request!.id)}
+                              disabled={actionLoading === `unassign-${item.support_request!.id}`}
+                              className="px-3 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                            >
+                              Desatribuir
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleAddNote(item.support_request!.id)}
+                            disabled={actionLoading === `note-${item.support_request!.id}`}
+                            className="px-3 py-1 text-xs font-medium rounded bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                          >
+                            Nota
+                          </button>
                           <button
                             onClick={() => handleResolve(item.support_request!.id)}
                             disabled={actionLoading === `resolve-${item.support_request!.id}`}
@@ -359,10 +517,35 @@ export default function AdminSupportPage() {
                           >
                             {actionLoading === `resolve-${item.support_request!.id}` ? "..." : "Resolver"}
                           </button>
+                          </>
                         )}
                       </div>
                     </td>
                   </tr>
+                  {historyOpenByCase[item.case_id] && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-3 bg-gray-50">
+                        <div className="space-y-1 text-xs">
+                          {(historyByCase[item.case_id] || []).length === 0 ? (
+                            <div className="text-gray-500">Sem eventos de suporte para este caso.</div>
+                          ) : (
+                            (historyByCase[item.case_id] || []).map((ev) => (
+                              <div key={ev.id} className="flex items-start justify-between gap-3">
+                                <div>
+                                  <span className="font-semibold text-gray-700">{ev.type}</span>
+                                  <span className="text-gray-500 ml-2">
+                                    {ev.payload ? JSON.stringify(ev.payload) : ""}
+                                  </span>
+                                </div>
+                                <span className="text-gray-500">{formatDate(ev.created_at)}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -372,3 +555,4 @@ export default function AdminSupportPage() {
     </div>
   );
 }
+

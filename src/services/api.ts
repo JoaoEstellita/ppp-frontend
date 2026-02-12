@@ -1273,8 +1273,23 @@ export type SupportCaseItem = {
     id: string;
     status: string;
     message: string | null;
+    owner_user_id?: string | null;
+    priority?: "low" | "normal" | "high" | "critical";
+    first_response_at?: string | null;
+    due_at?: string | null;
+    sla_overdue?: boolean;
+    is_mine?: boolean;
+    is_unassigned?: boolean;
     created_at: string;
   } | null;
+  created_at: string;
+};
+
+export type SupportHistoryItem = {
+  id: string;
+  type: string;
+  actor_user_id: string | null;
+  payload: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -1315,6 +1330,19 @@ export async function adminListSupportCases(filter?: "open" | "all" | "error" | 
   return Array.isArray(data) ? data : [];
 }
 
+export async function adminListSupportCasesAdvanced(params?: {
+  status?: "open" | "all" | "error" | "processing";
+  queue?: "all" | "mine" | "unassigned";
+}): Promise<SupportCaseItem[]> {
+  const search = new URLSearchParams();
+  if (params?.status) search.set("status", params.status);
+  if (params?.queue) search.set("queue", params.queue);
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  const res = await apiFetch(`/admin/support/cases${suffix}`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? data : [];
+}
+
 /**
  * Admin forÃ§a retry de um caso
  */
@@ -1345,6 +1373,54 @@ export async function adminResolveSupport(requestId: string): Promise<{ ok: bool
   });
   const data = await handleJsonResponse(res);
   return data as { ok: boolean; message: string };
+}
+
+export async function adminAssignSupportRequest(
+  requestId: string,
+  ownerUserId?: string | null
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/support/requests/${requestId}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ owner_user_id: ownerUserId }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
+}
+
+export async function adminUpdateSupportPriority(
+  requestId: string,
+  priority: "low" | "normal" | "high" | "critical"
+): Promise<{ ok: boolean; priority: string; due_at: string }> {
+  const res = await apiFetch(`/admin/support/requests/${requestId}/priority`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ priority }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean; priority: string; due_at: string };
+}
+
+export async function adminAddSupportNote(
+  requestId: string,
+  note: string
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/admin/support/requests/${requestId}/note`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  const data = await handleJsonResponse(res);
+  return data as { ok: boolean };
+}
+
+export async function adminGetSupportHistory(
+  caseId: string,
+  limit: number = 50
+): Promise<SupportHistoryItem[]> {
+  const res = await apiFetch(`/admin/support/cases/${caseId}/history?limit=${Math.max(1, Math.min(200, limit))}`);
+  const data = await handleJsonResponse(res);
+  return Array.isArray(data) ? (data as SupportHistoryItem[]) : [];
 }
 
 /**
