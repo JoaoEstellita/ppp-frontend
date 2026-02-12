@@ -27,6 +27,11 @@ function currentYearMonth(): string {
   return `${now.getFullYear()}-${month}`;
 }
 
+function formatPercent(value: number | null | undefined): string {
+  const amount = Number(value || 0);
+  return `${amount.toFixed(1)}%`;
+}
+
 export default function AdminReportsPage() {
   const [months, setMonths] = useState<BillingMonth[]>([]);
   const [opsOverview, setOpsOverview] = useState<AdminOpsOverview | null>(null);
@@ -131,6 +136,87 @@ export default function AdminReportsPage() {
     return b.awaiting_payment + b.awaiting_pdf + b.processing + b.error_open;
   }, [opsOverview]);
 
+  const opsHealth = useMemo(() => {
+    if (!opsOverview) {
+      return {
+        completionRate: 0,
+        callbackErrorRate: 0,
+        queuePressure: 0,
+        criticalItems: 0,
+      };
+    }
+
+    const created = Number(opsOverview.overview.created_cases || 0);
+    const done = Number(opsOverview.overview.done_cases || 0);
+    const callbackSuccess = Number(opsOverview.overview.callback_success_count || 0);
+    const callbackError = Number(opsOverview.overview.callback_error_count || 0);
+    const callbackTotal = callbackSuccess + callbackError;
+
+    const completionRate = created > 0 ? (done / created) * 100 : 0;
+    const callbackErrorRate = callbackTotal > 0 ? (callbackError / callbackTotal) * 100 : 0;
+    const queuePressure = Number(opsOverview.queues.open_cases_total || 0);
+    const criticalItems =
+      Number(opsOverview.sla.breaches.processing || 0) +
+      Number(opsOverview.sla.breaches.error_open || 0) +
+      Number(opsOverview.queues.open_support_requests || 0);
+
+    return {
+      completionRate,
+      callbackErrorRate,
+      queuePressure,
+      criticalItems,
+    };
+  }, [opsOverview]);
+
+  const cockpitAlerts = useMemo(() => {
+    if (!opsOverview) return [];
+
+    const alerts: Array<{ severity: "high" | "medium" | "low"; title: string; action: string }> = [];
+    const breaches = opsOverview.sla.breaches;
+
+    if (breaches.processing > 0) {
+      alerts.push({
+        severity: "high",
+        title: `SLA de processamento estourado em ${breaches.processing} caso(s)`,
+        action: "Priorizar retry e destravar callbacks pendentes imediatamente.",
+      });
+    }
+
+    if (breaches.error_open > 0) {
+      alerts.push({
+        severity: "high",
+        title: `${breaches.error_open} caso(s) em erro aberto`,
+        action: "Executar triagem no suporte com reprocessamento assistido.",
+      });
+    }
+
+    if (opsHealth.callbackErrorRate >= 5) {
+      alerts.push({
+        severity: "medium",
+        title: `Taxa de erro de callback em ${formatPercent(opsHealth.callbackErrorRate)}`,
+        action: "Revisar logs de webhook e latencia do gateway.",
+      });
+    }
+
+    if (opsOverview.queues.open_support_requests > 0) {
+      alerts.push({
+        severity: "medium",
+        title: `${opsOverview.queues.open_support_requests} suporte(s) aguardando`,
+        action: "Aplicar fila por prioridade para reduzir tempo medio de resposta.",
+      });
+    }
+
+    if (alerts.length === 0) {
+      alerts.push({
+        severity: "low",
+        title: "Operacao estavel",
+        action: "Focar em automacoes de qualidade e melhoria de conversao.",
+      });
+    }
+
+    return alerts;
+  }, [opsOverview, opsHealth.callbackErrorRate]);
+
   const formatLatency = (seconds: number | null | undefined) => {
     if (!seconds || seconds < 0) return "-";
     if (seconds < 60) return `${seconds}s`;
@@ -141,7 +227,12 @@ export default function AdminReportsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-2xl font-bold text-gray-900">Relatorios mensais</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Cockpit Operacional Unico</h2>
+          <p className="text-sm text-gray-600">
+            Fonte unica para cobranca, pipeline PPP, alertas de SLA e decisoes diarias.
+          </p>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <Button onClick={() => loadOpsOverview(opsPeriodDays)} className="bg-gray-100 hover:bg-gray-200 text-gray-700">
             Atualizar operacao
@@ -151,6 +242,43 @@ export default function AdminReportsPage() {
           </Button>
         </div>
       </div>
+
+      {opsOverview && (
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-xs text-gray-500">Saude do pipeline</div>
+            <div className="mt-2 text-2xl font-bold text-gray-900">{formatPercent(opsHealth.completionRate)}</div>
+            <div className="mt-1 text-xs text-gray-600">Taxa de conclusao no periodo</div>
+            <div className="mt-3 text-xs text-gray-600">
+              Erro callback: <span className="font-semibold">{formatPercent(opsHealth.callbackErrorRate)}</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-xs text-gray-500">Pressao de fila</div>
+            <div className="mt-2 text-2xl font-bold text-gray-900">{opsHealth.queuePressure}</div>
+            <div className="mt-1 text-xs text-gray-600">Casos em aberto na operacao</div>
+            <div className="mt-3 text-xs text-gray-600">
+              Itens criticos: <span className="font-semibold">{opsHealth.criticalItems}</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-xs text-gray-500">Controle unico de cobranca</div>
+            <div className="mt-2 text-sm font-semibold text-gray-900">Modelo atual: pay-per-case</div>
+            <div className="mt-1 text-xs text-gray-600">Assinatura unificada: em implantacao por fases</div>
+            <div className="mt-3 text-xs text-gray-600">
+              GMV: <span className="font-semibold">{formatMoney(opsOverview.finance.gmv_total)}</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-xs text-gray-500">Acao recomendada hoje</div>
+            <div className="mt-2 text-sm font-semibold text-gray-900">{cockpitAlerts[0]?.title || "Sem alertas"}</div>
+            <div className="mt-2 text-xs text-gray-600">{cockpitAlerts[0]?.action || "-"}</div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -247,6 +375,30 @@ export default function AdminReportsPage() {
         )}
       </div>
 
+      {opsOverview && (
+        <div className="bg-white rounded-lg shadow p-4 space-y-3">
+          <h3 className="text-lg font-semibold text-gray-900">Alertas operacionais e resposta</h3>
+          <div className="grid md:grid-cols-2 gap-3">
+            {cockpitAlerts.map((alert, index) => (
+              <div
+                key={`${alert.title}-${index}`}
+                className={`rounded border p-3 ${
+                  alert.severity === "high"
+                    ? "border-red-200 bg-red-50"
+                    : alert.severity === "medium"
+                    ? "border-amber-200 bg-amber-50"
+                    : "border-emerald-200 bg-emerald-50"
+                }`}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-700">{alert.severity}</div>
+                <div className="mt-1 text-sm font-semibold text-gray-900">{alert.title}</div>
+                <div className="mt-1 text-xs text-gray-700">{alert.action}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
         <div className="text-sm text-gray-600">Gerar e consultar snapshot por mes (YYYY-MM)</div>
         <div className="flex gap-3 items-end flex-wrap">
@@ -340,6 +492,33 @@ export default function AdminReportsPage() {
           </div>
         </div>
       )}
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        <h3 className="text-lg font-semibold text-gray-900">Playbook 30 dias (melhor dos mundos)</h3>
+        <div className="grid md:grid-cols-3 gap-3">
+          <div className="rounded border border-blue-200 bg-blue-50 p-3">
+            <div className="text-xs font-semibold text-blue-700">Semana 1</div>
+            <div className="mt-1 text-sm font-semibold text-gray-900">Fonte unica de cobranca</div>
+            <div className="mt-1 text-xs text-gray-700">
+              Consolidar eventos de pagamento, faturamento e repasse em uma trilha unica auditavel.
+            </div>
+          </div>
+          <div className="rounded border border-indigo-200 bg-indigo-50 p-3">
+            <div className="text-xs font-semibold text-indigo-700">Semana 2-3</div>
+            <div className="mt-1 text-sm font-semibold text-gray-900">Confiabilidade de pipeline</div>
+            <div className="mt-1 text-xs text-gray-700">
+              Formalizar retry/backoff por etapa, com metas de SLA e painel de pendencias em tempo real.
+            </div>
+          </div>
+          <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
+            <div className="text-xs font-semibold text-emerald-700">Semana 4</div>
+            <div className="mt-1 text-sm font-semibold text-gray-900">Experiencia premium</div>
+            <div className="mt-1 text-xs text-gray-700">
+              Exibir proxima melhor acao para usuario final e sindicato, reduzindo retrabalho e suporte.
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
