@@ -128,7 +128,10 @@ export default function AdminSupportPage() {
     setActionLoading(`submit-${caseId}`);
     setMessage(null);
     try {
-      const result = await adminSubmitCase(caseId);
+      const caseItem = cases.find((item) => item.case_id === caseId);
+      const isFinalized =
+        caseItem?.case_status === "done" || caseItem?.case_status === "done_warning";
+      const result = await adminSubmitCase(caseId, { forceReprocess: isFinalized });
       setMessage({ 
         type: "success", 
         text: result.message || "Enviado para análise!"
