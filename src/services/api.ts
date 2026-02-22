@@ -1911,9 +1911,9 @@ export async function validateUnionCodePublic(code: string): Promise<PublicUnion
 
 export async function createPublicCase(params: {
   workerName: string;
-  workerCPF: string;
-  companyName: string;
-  companyCNPJ: string;
+  workerCPF?: string;
+  companyName?: string;
+  companyCNPJ?: string;
   workerEmail?: string;
   unionCode?: string;
   consentLGPD: boolean;
@@ -1921,9 +1921,15 @@ export async function createPublicCase(params: {
 }): Promise<PublicCaseResponse> {
   const formData = new FormData();
   formData.append('workerName', params.workerName);
-  formData.append('workerCPF', params.workerCPF);
-  formData.append('companyName', params.companyName);
-  formData.append('companyCNPJ', params.companyCNPJ);
+  if (params.workerCPF) {
+    formData.append('workerCPF', params.workerCPF);
+  }
+  if (params.companyName) {
+    formData.append('companyName', params.companyName);
+  }
+  if (params.companyCNPJ) {
+    formData.append('companyCNPJ', params.companyCNPJ);
+  }
   if (params.workerEmail) {
     formData.append('email', params.workerEmail);
   }

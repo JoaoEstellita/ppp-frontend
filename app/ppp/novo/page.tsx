@@ -91,10 +91,12 @@ export default function PublicCaseNewPage() {
   const discountAmount = BASE_PRICE - finalPrice;
 
   const workerNameValid = workerName.trim().length > 0;
-  const workerCpfValid = digitsOnly(workerCPF).length === 11;
+  const workerCpfDigits = digitsOnly(workerCPF);
+  const workerCpfValid = workerCpfDigits.length === 0 || workerCpfDigits.length === 11;
   const workerEmailValid = isValidEmail(workerEmail);
-  const companyNameValid = companyName.trim().length > 0;
-  const companyCnpjValid = digitsOnly(companyCNPJ).length === 14;
+  const companyNameValid = true;
+  const companyCnpjDigits = digitsOnly(companyCNPJ);
+  const companyCnpjValid = companyCnpjDigits.length === 0 || companyCnpjDigits.length === 14;
   const hasFile = Boolean(selectedFile);
   const fileWithinLimit = !selectedFile || selectedFile.size <= MAX_PDF_MB * 1024 * 1024;
   const codeTyped = unionCodeInput.trim().length > 0;
@@ -102,8 +104,8 @@ export default function PublicCaseNewPage() {
 
   const canContinue =
     workerNameValid &&
-    workerCpfValid &&
     workerEmailValid &&
+    workerCpfValid &&
     companyNameValid &&
     companyCnpjValid &&
     hasFile &&
@@ -196,7 +198,7 @@ export default function PublicCaseNewPage() {
       setError("Informe o nome do trabalhador.");
       return;
     }
-    if (cpfDigits.length !== 11) {
+    if (cpfDigits.length > 0 && cpfDigits.length !== 11) {
       setError("Informe um CPF valido com 11 digitos.");
       return;
     }
@@ -204,11 +206,7 @@ export default function PublicCaseNewPage() {
       setError("Informe um email valido.");
       return;
     }
-    if (!trimmedCompanyName) {
-      setError("Informe o nome da empresa conforme consta no PPP.");
-      return;
-    }
-    if (cnpjDigits.length !== 14) {
+    if (cnpjDigits.length > 0 && cnpjDigits.length !== 14) {
       setError("Informe um CNPJ valido com 14 digitos.");
       return;
     }
@@ -229,10 +227,10 @@ export default function PublicCaseNewPage() {
     try {
       const created = await createPublicCase({
         workerName: trimmedWorkerName,
-        workerCPF: cpfDigits,
+        workerCPF: cpfDigits || undefined,
         workerEmail: workerEmail.trim(),
-        companyName: trimmedCompanyName,
-        companyCNPJ: cnpjDigits,
+        companyName: trimmedCompanyName || undefined,
+        companyCNPJ: cnpjDigits || undefined,
         unionCode: normalizedCode || undefined,
         consentLGPD: lgpdAccepted,
         file: selectedFile,
@@ -339,7 +337,7 @@ export default function PublicCaseNewPage() {
                   />
                 </label>
                 <label className="text-xs text-slate-600">
-                  CPF *
+                  CPF (opcional)
                   <input
                     value={formatCpf(workerCPF)}
                     onChange={(event) => setWorkerCPF(digitsOnly(event.target.value))}
@@ -357,7 +355,7 @@ export default function PublicCaseNewPage() {
                   />
                 </label>
                 <label className="text-xs text-slate-600">
-                  Empresa *
+                  Empresa (opcional)
                   <input
                     value={companyName}
                     onChange={(event) => setCompanyName(event.target.value)}
@@ -366,7 +364,7 @@ export default function PublicCaseNewPage() {
                   <span className="mt-1 block text-[11px] text-slate-500">Preencha como aparece no PPP.</span>
                 </label>
                 <label className="text-xs text-slate-600 md:col-span-2">
-                  CNPJ *
+                  CNPJ (opcional)
                   <input
                     value={formatCnpj(companyCNPJ)}
                     onChange={(event) => setCompanyCNPJ(digitsOnly(event.target.value))}
@@ -476,9 +474,9 @@ export default function PublicCaseNewPage() {
                   Consentimento LGPD obrigatorio para prosseguir.
                 </p>
               )}
-              {!canContinue && (
+              {!canContinue && !submitting && (
                 <p className="mt-2 text-xs text-amber-700">
-                  Preencha os campos obrigatorios, envie o PDF e valide (ou limpe) o codigo para continuar.
+                  Preencha nome, email, envie o PDF e valide (ou limpe) o codigo para continuar.
                 </p>
               )}
               {caseId && (

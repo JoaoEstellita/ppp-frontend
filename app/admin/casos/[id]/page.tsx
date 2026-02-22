@@ -602,6 +602,7 @@ export default function AdminCaseDetailPage() {
             <p><span className="text-gray-500">Status:</span> {STATUS_LABELS[caseData.status] ?? caseData.status}</p>
             <p><span className="text-gray-500">Criado em:</span> {formatDate(caseData.created_at)}</p>
             <p><span className="text-gray-500">Atualizado em:</span> {formatDate(caseData.updated_at)}</p>
+            <p><span className="text-gray-500">Email do trabalhador:</span> {caseData.user_email || "-"}</p>
             <p><span className="text-gray-500">Retries:</span> {caseData.retry_count}</p>
           </div>
         </div>
