@@ -92,11 +92,9 @@ export default function PublicCaseNewPage() {
 
   const workerNameValid = workerName.trim().length > 0;
   const workerCpfDigits = digitsOnly(workerCPF);
-  const workerCpfValid = workerCpfDigits.length === 0 || workerCpfDigits.length === 11;
   const workerEmailValid = isValidEmail(workerEmail);
   const companyNameValid = true;
   const companyCnpjDigits = digitsOnly(companyCNPJ);
-  const companyCnpjValid = companyCnpjDigits.length === 0 || companyCnpjDigits.length === 14;
   const hasFile = Boolean(selectedFile);
   const fileWithinLimit = !selectedFile || selectedFile.size <= MAX_PDF_MB * 1024 * 1024;
   const codeTyped = unionCodeInput.trim().length > 0;
@@ -105,9 +103,7 @@ export default function PublicCaseNewPage() {
   const canContinue =
     workerNameValid &&
     workerEmailValid &&
-    workerCpfValid &&
     companyNameValid &&
-    companyCnpjValid &&
     hasFile &&
     fileWithinLimit &&
     codeReady &&
@@ -198,16 +194,8 @@ export default function PublicCaseNewPage() {
       setError("Informe o nome do trabalhador.");
       return;
     }
-    if (cpfDigits.length > 0 && cpfDigits.length !== 11) {
-      setError("Informe um CPF valido com 11 digitos.");
-      return;
-    }
     if (!isValidEmail(workerEmail)) {
       setError("Informe um email valido.");
-      return;
-    }
-    if (cnpjDigits.length > 0 && cnpjDigits.length !== 14) {
-      setError("Informe um CNPJ valido com 14 digitos.");
       return;
     }
     if (!selectedFile) {
@@ -219,6 +207,9 @@ export default function PublicCaseNewPage() {
       return;
     }
 
+    const cpfForSubmit = cpfDigits.length === 11 ? cpfDigits : undefined;
+    const cnpjForSubmit = cnpjDigits.length === 14 ? cnpjDigits : undefined;
+
     setSubmitting(true);
     setSlowSubmit(false);
     setError(null);
@@ -227,10 +218,10 @@ export default function PublicCaseNewPage() {
     try {
       const created = await createPublicCase({
         workerName: trimmedWorkerName,
-        workerCPF: cpfDigits || undefined,
+        workerCPF: cpfForSubmit,
         workerEmail: workerEmail.trim(),
         companyName: trimmedCompanyName || undefined,
-        companyCNPJ: cnpjDigits || undefined,
+        companyCNPJ: cnpjForSubmit,
         unionCode: normalizedCode || undefined,
         consentLGPD: lgpdAccepted,
         file: selectedFile,
@@ -244,7 +235,8 @@ export default function PublicCaseNewPage() {
 
       const payment = await createPublicPayment(created.case_id);
       if (payment?.payment_url) {
-        window.location.href = payment.payment_url;
+        window.open(payment.payment_url, "_blank", "noopener,noreferrer");
+        window.location.href = `/ppp/${created.case_id}`;
         return;
       }
 

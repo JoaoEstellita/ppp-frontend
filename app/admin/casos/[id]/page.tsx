@@ -837,23 +837,14 @@ export default function AdminCaseDetailPage() {
           )}
 
           {/* Reenviar email para trabalhador (B2C) */}
-          {caseData.user_email ? (
-            <Button
-              onClick={handleResendPublicEmail}
-              disabled={actionLoading === "resend-public-email"}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {actionLoading === "resend-public-email" ? "Enviando..." : "Reenviar email do trabalhador"}
-            </Button>
-          ) : (
-            <Button
-              disabled={true}
-              title="Email do trabalhador não informado"
-              className="bg-gray-300 text-gray-600 cursor-not-allowed"
-            >
-              Reenviar email do trabalhador
-            </Button>
-          )}
+          <Button
+            onClick={handleResendPublicEmail}
+            disabled={actionLoading === "resend-public-email"}
+            title={caseData.user_email ? undefined : "Email principal ausente; backend tentará fallback pelos eventos do caso."}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+          >
+            {actionLoading === "resend-public-email" ? "Enviando..." : "Reenviar email do trabalhador"}
+          </Button>
         </div>
 
         {/* Aviso sobre override */}

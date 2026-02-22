@@ -291,7 +291,9 @@ export default function PublicCaseStatusPage() {
     try {
       const response = await createPublicPayment(caseId);
       if (response?.payment_url) {
-        window.location.href = response.payment_url;
+        window.open(response.payment_url, "_blank", "noopener,noreferrer");
+        setPaymentUrl(response.payment_url);
+        setActionError("Link de pagamento aberto em nova aba.");
         return;
       }
       setActionError("Pagamento criado, mas o link nÃ£o foi retornado.");
@@ -764,6 +766,8 @@ export default function PublicCaseStatusPage() {
               ) : paymentUrl ? (
                 <a
                   href={paymentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
                 >
                   Pagar agora
