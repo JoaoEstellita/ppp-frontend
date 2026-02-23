@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -69,11 +69,11 @@ function formatStatus(status?: string | null) {
     case "paid_processing":
       return "Em processamento";
     case "done":
-      return "ConcluÃ­do";
+      return "Concluído";
     case "done_warning":
-      return "ConcluÃ­do com alerta";
+      return "Concluído com alerta";
     case "error":
-      return "AÃ§Ã£o necessÃ¡ria";
+      return "Ação necessária";
     default:
       return status || "-";
   }
@@ -105,11 +105,11 @@ function resolvePublicErrorMessage(code?: string | null, message?: string | null
     case "ocr_failed":
       return "Falha na leitura do documento. Reenvie o PDF.";
     case "ocr_size_limit":
-      return "Arquivo muito grande para leitura automÃ¡tica. Reenvie um PDF menor.";
+      return "Arquivo muito grande para leitura automática. Reenvie um PDF menor.";
     case "validation_failed":
-      return "Falha de validaÃ§Ã£o tÃ©cnica. Reenvie o PDF com dados corretos.";
+      return "Falha de validação técnica. Reenvie o PDF com dados corretos.";
     case "conflict_detected":
-      return "HÃ¡ divergÃªncias entre os dados do cadastro e o documento. Corrija os dados ou reenvie o PDF.";
+      return "Há divergências entre os dados do cadastro e o documento. Corrija os dados ou reenvie o PDF.";
     default:
       return "Erro no processamento. Tente reenviar o PDF.";
   }
@@ -296,11 +296,11 @@ export default function PublicCaseStatusPage() {
         setActionError("Link de pagamento aberto em nova aba.");
         return;
       }
-      setActionError("Pagamento criado, mas o link nÃ£o foi retornado.");
+      setActionError("Pagamento criado, mas o link não foi retornado.");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {
-          setActionError("Pagamento jÃ¡ iniciado para este caso.");
+          setActionError("Pagamento já iniciado para este caso.");
         } else {
           const detailsMessage =
             typeof err.details === "object" && err.details !== null
@@ -327,7 +327,7 @@ export default function PublicCaseStatusPage() {
     const companyCNPJ = digitsOnly(detailsForm.companyCNPJ);
 
     if (!workerName || !companyName || workerCPF.length !== 11 || companyCNPJ.length !== 14) {
-      setDetailsError("Preencha nome, CPF (11 dÃ­gitos), empresa e CNPJ (14 dÃ­gitos).");
+      setDetailsError("Preencha nome, CPF (11 dígitos), empresa e CNPJ (14 dígitos).");
       return;
     }
 
@@ -339,7 +339,7 @@ export default function PublicCaseStatusPage() {
         companyName,
         companyCNPJ,
       });
-      setDetailsSuccess("Dados atualizados. O caso estÃ¡ pronto para novo envio.");
+      setDetailsSuccess("Dados atualizados. O caso está pronto para novo envio.");
       setEditingDetails(false);
       await fetchCase();
     } catch (err) {
@@ -366,7 +366,7 @@ export default function PublicCaseStatusPage() {
       if (response?.signedUrl) {
         window.open(response.signedUrl, "_blank", "noopener,noreferrer");
       } else {
-        setDownloadInputError("Documento de entrada indisponÃ­vel no momento.");
+        setDownloadInputError("Documento de entrada indisponível no momento.");
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -388,7 +388,7 @@ export default function PublicCaseStatusPage() {
       if (response?.signedUrl) {
         window.open(response.signedUrl, "_blank", "noopener,noreferrer");
       } else {
-        setDownloadResultError("Resultado indisponÃ­vel no momento.");
+        setDownloadResultError("Resultado indisponível no momento.");
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -436,7 +436,7 @@ export default function PublicCaseStatusPage() {
             Criar novo caso
           </Link>
           <Link href="/ppp" className="text-sm font-medium text-slate-700 hover:underline">
-            Voltar para inÃ­cio
+            Voltar para início
           </Link>
           <button className="text-sm font-medium text-slate-700 hover:underline" onClick={fetchCase}>
             Tentar novamente
@@ -449,7 +449,7 @@ export default function PublicCaseStatusPage() {
   if (!caseDetail?.case) {
     return (
       <main className="mx-auto max-w-4xl px-6 py-10">
-        <p className="text-sm text-slate-600">Caso nÃ£o encontrado.</p>
+        <p className="text-sm text-slate-600">Caso não encontrado.</p>
       </main>
     );
   }
@@ -510,7 +510,7 @@ export default function PublicCaseStatusPage() {
 
         {showErrorBanner && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <p className="font-semibold">Ãšltimo problema</p>
+            <p className="font-semibold">Último problema</p>
             <p className="mt-1">{resolvePublicErrorMessage(lastErrorCode, lastErrorMessage)}</p>
             {lastErrorStep && <p className="mt-1 text-xs">Etapa: {lastErrorStep}</p>}
           </div>
@@ -607,7 +607,7 @@ export default function PublicCaseStatusPage() {
               {editingDetails && (
                 <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs text-slate-600">
-                    Corrija os dados como aparecem no PPP. Depois disso, reenvie para anÃ¡lise.
+                    Corrija os dados como aparecem no PPP. Depois disso, reenvie para análise.
                   </p>
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="text-xs text-slate-600">
@@ -654,7 +654,7 @@ export default function PublicCaseStatusPage() {
                   {detailsError && <p className="text-xs text-red-600">{detailsError}</p>}
                   <div className="flex gap-2">
                     <Button onClick={handleSaveDetails} disabled={detailsSaving}>
-                      {detailsSaving ? "Salvando..." : "Salvar correÃ§Ãµes"}
+                      {detailsSaving ? "Salvando..." : "Salvar correções"}
                     </Button>
                     <Button
                       variant="outline"
@@ -687,7 +687,7 @@ export default function PublicCaseStatusPage() {
                   </Button>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">Documento ainda nÃ£o localizado.</p>
+                <p className="mt-2 text-sm text-slate-600">Documento ainda não localizado.</p>
               )}
               {downloadInputError && <p className="mt-2 text-xs text-red-600">{downloadInputError}</p>}
             </div>
@@ -697,7 +697,7 @@ export default function PublicCaseStatusPage() {
               {resultDoc ? (
                 <>
                   <p className="mt-2 text-sm text-slate-700">
-                    {resultDoc.fileName || "Resultado disponÃ­vel para download"}
+                    {resultDoc.fileName || "Resultado disponível para download"}
                   </p>
                   <Button
                     onClick={handleDownloadResult}
@@ -708,7 +708,7 @@ export default function PublicCaseStatusPage() {
                   </Button>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">Resultado ainda nÃ£o disponÃ­vel.</p>
+                <p className="mt-2 text-sm text-slate-600">Resultado ainda não disponível.</p>
               )}
               {downloadResultError && <p className="mt-2 text-xs text-red-600">{downloadResultError}</p>}
             </div>
@@ -716,7 +716,7 @@ export default function PublicCaseStatusPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">Reenviar PDF</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Use esta aÃ§Ã£o quando houver falha de leitura ou solicitaÃ§Ã£o de atualizaÃ§Ã£o.
+                Use esta ação quando houver falha de leitura ou solicitação de atualização.
               </p>
               <input
                 type="file"
@@ -752,9 +752,9 @@ export default function PublicCaseStatusPage() {
                 </div>
                 {unionCodeApplied && (
                   <div className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
-                    <p>CÃ³digo aplicado: {unionCodeApplied}</p>
-                    <p>PreÃ§o padrÃ£o: {formatPrice(BASE_PRICE)}</p>
-                    <p>PreÃ§o com desconto: {formatPrice(DISCOUNT_PRICE)}</p>
+                    <p>Código aplicado: {unionCodeApplied}</p>
+                    <p>Preço padrão: {formatPrice(BASE_PRICE)}</p>
+                    <p>Preço com desconto: {formatPrice(DISCOUNT_PRICE)}</p>
                   </div>
                 )}
               </div>
@@ -784,9 +784,9 @@ export default function PublicCaseStatusPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">RecuperaÃ§Ã£o</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Recuperação</h3>
               <p className="mt-2 text-sm text-slate-600">
-                Se sua internet cair, vocÃª pode voltar usando este mesmo link do caso.
+                Se sua internet cair, você pode voltar usando este mesmo link do caso.
               </p>
               <p className="mt-2 break-all text-xs text-slate-500">{caseDetail.case.id}</p>
             </div>
@@ -798,12 +798,12 @@ export default function PublicCaseStatusPage() {
             )}
             {!paymentSettled && searchParams?.get("payment") === "failure" && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-                Pagamento nÃ£o concluÃ­do. Gere um novo link e tente novamente.
+                Pagamento não concluído. Gere um novo link e tente novamente.
               </div>
             )}
             {!paymentSettled && searchParams?.get("payment") === "pending" && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                Pagamento pendente. Aguarde a confirmaÃ§Ã£o ou tente novamente mais tarde.
+                Pagamento pendente. Aguarde a confirmação ou tente novamente mais tarde.
               </div>
             )}
           </aside>

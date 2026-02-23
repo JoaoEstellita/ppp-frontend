@@ -138,6 +138,20 @@ function isGatewayTransientMessage(value: string | null | undefined): boolean {
   );
 }
 
+function isPendingConfirmationMessage(value: string | null | undefined): boolean {
+  const text = String(value || "").toLowerCase();
+  return text.includes("pending_confirmation");
+}
+
+function normalizeDocName(value: string | null | undefined): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\(\d+\)/g, "")
+    .replace(/[_\-\s]+/g, "")
+    .replace(/\.pdf$/i, "")
+    .trim();
+}
+
 function isTransientGatewaySubmitState(caseData: AdminCaseDetail["case"] | null | undefined): boolean {
   if (!caseData) return false;
   const looksLikeGatewayError =
@@ -477,6 +491,14 @@ export default function AdminCaseDetailPage() {
   const pppOutputDoc = documents.find(
     (doc) => doc.document_type === "ppp_result" || doc.document_type === "ppp_output"
   );
+  const documentsForList = documents.filter((doc) => {
+    if (doc.document_type !== "ppp_input_original") return true;
+    const currentInput = documents.find((d) => d.document_type === "ppp_input");
+    if (!currentInput) return true;
+    const a = normalizeDocName(doc.original_name || "");
+    const b = normalizeDocName(currentInput.original_name || "");
+    return a !== b;
+  });
   const errorCode = String(caseData.last_error_code ?? "").toLowerCase();
   const hasDivergence = errorCode === "conflict_detected" || Boolean((caseData as any).has_divergence);
   const errorMessage =
@@ -492,7 +514,12 @@ export default function AdminCaseDetailPage() {
       : errorCode === "validation_failed"
       ? "Falha de validação técnica. Verifique os dados e reenvie o PPP."
       : "");
-  const transientGatewaySubmit = isTransientGatewaySubmitState(caseData);
+  const pendingConfirmationSignal =
+    (isPendingConfirmationMessage(caseData.last_n8n_error) ||
+      isPendingConfirmationMessage(caseData.last_error_message)) &&
+    isRecentIsoDate(caseData.last_submit_at, 30 * 60 * 1000);
+
+  const transientGatewaySubmit = isTransientGatewaySubmitState(caseData) || pendingConfirmationSignal;
   const effectiveN8nStatus = transientGatewaySubmit ? "submitted" : caseData.last_n8n_status;
   const effectiveN8nError = transientGatewaySubmit ? null : caseData.last_n8n_error;
   const adminNextActions = (() => {
@@ -977,11 +1004,11 @@ export default function AdminCaseDetailPage() {
       {/* Documentos */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-sm font-semibold text-gray-600 mb-4">Documentos</h3>
-        {documents.length === 0 ? (
+        {documentsForList.length === 0 ? (
           <p className="text-sm text-gray-500">Nenhum documento anexado.</p>
         ) : (
           <div className="space-y-3">
-            {documents.map((doc) => (
+            {documentsForList.map((doc) => (
               <div
                 key={doc.id}
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
