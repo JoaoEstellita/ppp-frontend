@@ -515,14 +515,43 @@ export default function AdminCaseDetailPage() {
       ? "Falha de validação técnica. Verifique os dados e reenvie o PPP."
       : "");
   const pendingConfirmationSignal =
+    caseData.last_n8n_status === "error" &&
     (isPendingConfirmationMessage(caseData.last_n8n_error) ||
       isPendingConfirmationMessage(caseData.last_error_message)) &&
     isRecentIsoDate(caseData.last_submit_at, 30 * 60 * 1000);
+  const formalConformity =
+    analysis?.formalConformity ??
+    (analysis as any)?.extraMetadata?.formalConformity ??
+    null;
+  const technicalConformity =
+    analysis?.technicalConformity ??
+    (analysis as any)?.extraMetadata?.technicalConformity ??
+    null;
+  const probativeValue =
+    analysis?.probativeValue ??
+    (analysis as any)?.extraMetadata?.probativeValue ??
+    null;
+  const confidenceLevel =
+    analysis?.confidenceLevel ??
+    (analysis as any)?.extraMetadata?.confidenceLevel ??
+    null;
+  const findingsWithEvidence = Array.isArray(analysis?.findingsWithEvidence)
+    ? analysis?.findingsWithEvidence
+    : [];
+  const analysisSummary =
+    (analysis?.results as any)?.summary ??
+    (analysis?.raw_ai_result as any)?.results?.summary ??
+    caseData.last_error_message ??
+    null;
+  const analysisSuggestedActions = Array.isArray(analysis?.nextActions) ? analysis.nextActions : [];
 
   const transientGatewaySubmit = isTransientGatewaySubmitState(caseData) || pendingConfirmationSignal;
   const effectiveN8nStatus = transientGatewaySubmit ? "submitted" : caseData.last_n8n_status;
   const effectiveN8nError = transientGatewaySubmit ? null : caseData.last_n8n_error;
   const adminNextActions = (() => {
+    if (analysisSuggestedActions.length > 0) {
+      return analysisSuggestedActions.slice(0, 4);
+    }
     if (transientGatewaySubmit) {
       return [
         "Aguardar callback final do n8n para confirmar status.",
@@ -591,8 +620,8 @@ export default function AdminCaseDetailPage() {
       <ResultSummaryCard
         audience="admin"
         status={caseData.status}
-        finalClassification={analysis?.final_classification ?? null}
-        summary={caseData.last_error_message || null}
+        finalClassification={analysis?.finalClassification ?? analysis?.final_classification ?? null}
+        summary={analysisSummary}
         validationOk={null}
         validationIssues={[]}
         verifierRisk={null}
@@ -601,6 +630,11 @@ export default function AdminCaseDetailPage() {
         lastErrorMessage={transientGatewaySubmit ? null : errorMessage || null}
         nextActions={adminNextActions}
         updatedAt={caseData.updated_at || null}
+        formalConformity={formalConformity}
+        technicalConformity={technicalConformity}
+        probativeValue={probativeValue}
+        confidenceLevel={confidenceLevel}
+        findingsWithEvidence={findingsWithEvidence}
       />
 
       {/* Grid de informações */}
@@ -956,7 +990,7 @@ export default function AdminCaseDetailPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 className="text-sm font-semibold text-blue-800">Envio em validação</h3>
           <p className="text-sm text-blue-700 mt-1">
-            O backend recebeu erro transitório de gateway, mas o n8n já foi acionado. Aguarde o callback para status final.
+            Envio aceito pelo backend. O n8n foi acionado e estamos aguardando o callback para status final.
           </p>
         </div>
       )}

@@ -6,6 +6,13 @@ type ResultIssue =
       severity?: string | null;
     };
 
+type ResultFinding = {
+  field_ref?: string | null;
+  explanation?: string | null;
+  evidence_excerpt?: string | null;
+  severity?: string | null;
+};
+
 type ResultSummaryCardProps = {
   audience: "worker" | "union" | "admin";
   status?: string | null;
@@ -19,6 +26,11 @@ type ResultSummaryCardProps = {
   lastErrorMessage?: string | null;
   nextActions?: string[];
   updatedAt?: string | null;
+  formalConformity?: "CONFORME" | "NAO_CONFORME" | null;
+  technicalConformity?: "CONFORME" | "PENDENTE" | "NAO_CONFORME" | null;
+  probativeValue?: "SUFICIENTE" | "INSUFICIENTE" | "INEXISTENTE" | null;
+  confidenceLevel?: "ALTO" | "MODERADO" | "BAIXO" | null;
+  findingsWithEvidence?: ResultFinding[];
 };
 
 function classificationLabel(value?: string | null): string {
@@ -84,11 +96,44 @@ function formatDate(value?: string | null): string {
   return date.toLocaleString("pt-BR");
 }
 
+function conformityLabel(value?: string | null): string {
+  if (!value) return "-";
+  if (value === "CONFORME") return "Conforme";
+  if (value === "PENDENTE") return "Pendente";
+  if (value === "NAO_CONFORME") return "Nao conforme";
+  return value;
+}
+
+function probativeLabel(value?: string | null): string {
+  if (!value) return "-";
+  if (value === "SUFICIENTE") return "Suficiente";
+  if (value === "INSUFICIENTE") return "Insuficiente";
+  if (value === "INEXISTENTE") return "Inexistente";
+  return value;
+}
+
+function confidenceLabel(value?: string | null): string {
+  if (!value) return "-";
+  if (value === "ALTO") return "Alto";
+  if (value === "MODERADO") return "Moderado";
+  if (value === "BAIXO") return "Baixo";
+  return value;
+}
+
+function severityLabel(value?: string | null): string {
+  const token = String(value || "").toUpperCase();
+  if (token === "CRITICAL") return "Critico";
+  if (token === "WARNING") return "Alerta";
+  if (token === "INFO") return "Info";
+  return token || "-";
+}
+
 export function ResultSummaryCard(props: ResultSummaryCardProps) {
   const issues = [
     ...(props.validationIssues || []),
     ...((props.verifierIssues || []).map(normalizeIssue).filter(Boolean)),
   ].slice(0, 4);
+  const findings = (props.findingsWithEvidence || []).filter(Boolean).slice(0, 5);
 
   const hasCriticalIssue =
     props.validationOk === false ||
@@ -133,6 +178,25 @@ export function ResultSummaryCard(props: ResultSummaryCardProps) {
         </div>
       </div>
 
+      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs text-slate-500">Conformidade formal</p>
+          <p className="text-sm font-medium text-slate-900">{conformityLabel(props.formalConformity)}</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs text-slate-500">Conformidade tecnica</p>
+          <p className="text-sm font-medium text-slate-900">{conformityLabel(props.technicalConformity)}</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs text-slate-500">Valor probatorio</p>
+          <p className="text-sm font-medium text-slate-900">{probativeLabel(props.probativeValue)}</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs text-slate-500">Confianca</p>
+          <p className="text-sm font-medium text-slate-900">{confidenceLabel(props.confidenceLevel)}</p>
+        </div>
+      </div>
+
       {issues.length > 0 && (
         <div className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-3">
           <p className="text-xs font-semibold text-slate-700">Pontos de atencao</p>
@@ -160,7 +224,25 @@ export function ResultSummaryCard(props: ResultSummaryCardProps) {
           </ul>
         </div>
       )}
+
+      {findings.length > 0 && (
+        <div className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-3">
+          <p className="text-xs font-semibold text-slate-700">Achados com evidencia</p>
+          <ul className="mt-2 space-y-2 text-xs text-slate-700">
+            {findings.map((finding, index) => (
+              <li key={`${finding.field_ref || "field"}-${index}`} className="rounded border border-slate-100 px-2 py-2">
+                <p className="font-semibold text-slate-800">
+                  {finding.field_ref || "-"} - {severityLabel(finding.severity)}
+                </p>
+                <p>{finding.explanation || "-"}</p>
+                {finding.evidence_excerpt ? (
+                  <p className="mt-1 text-slate-500">Evidencia: &quot;{finding.evidence_excerpt}&quot;</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
-

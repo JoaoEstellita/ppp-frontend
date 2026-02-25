@@ -179,6 +179,23 @@ export interface AnalysisResult {
   flags?: string[];
 }
 
+export type FormalConformity = "CONFORME" | "NAO_CONFORME";
+export type TechnicalConformity = "CONFORME" | "PENDENTE" | "NAO_CONFORME";
+export type ProbativeValue = "SUFICIENTE" | "INSUFICIENTE" | "INEXISTENTE";
+export type ConfidenceLevel = "ALTO" | "MODERADO" | "BAIXO";
+export type TechnicalFailureType =
+  | "AUSENCIA"
+  | "CONTRADICAO"
+  | "INSUFICIENCIA_PROBATORIA"
+  | "INCONSISTENCIA_INTERNA";
+
+export interface FindingWithEvidence {
+  field_ref: string;
+  explanation: string;
+  evidence_excerpt: string;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+}
+
 export interface CaseAnalysis {
   id: string;
   case_id: string;
@@ -198,6 +215,16 @@ export interface CaseAnalysis {
     observations?: string;
     [key: string]: any;
   } | null;
+  formalConformity?: FormalConformity | null;
+  technicalConformity?: TechnicalConformity | null;
+  probativeValue?: ProbativeValue | null;
+  nextActions?: string[];
+  findingsWithEvidence?: FindingWithEvidence[];
+  analysisScope?: string | null;
+  analysisEngineVersion?: string | null;
+  analysisRulesVersion?: string | null;
+  confidenceLevel?: ConfidenceLevel | null;
+  technicalFailureType?: TechnicalFailureType | null;
 }
 
 export interface CaseDetail {
@@ -592,6 +619,98 @@ function ensureStringArray(value: any): string[] | undefined {
   return undefined;
 }
 
+function normalizeToken(value: any): string {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+}
+
+function normalizeFormalConformity(value: any): FormalConformity | null {
+  const token = normalizeToken(value);
+  if (token === "CONFORME") return "CONFORME";
+  if (token === "NAO_CONFORME") return "NAO_CONFORME";
+  return null;
+}
+
+function normalizeTechnicalConformity(value: any): TechnicalConformity | null {
+  const token = normalizeToken(value);
+  if (token === "CONFORME") return "CONFORME";
+  if (token === "PENDENTE") return "PENDENTE";
+  if (token === "NAO_CONFORME") return "NAO_CONFORME";
+  return null;
+}
+
+function deriveProbativeValue(
+  formal: FormalConformity | null,
+  technical: TechnicalConformity | null
+): ProbativeValue | null {
+  if (!formal || !technical) return null;
+  if (formal === "NAO_CONFORME") return "INEXISTENTE";
+  if (technical === "CONFORME") return "SUFICIENTE";
+  return "INSUFICIENTE";
+}
+
+function normalizeFindingsWithEvidence(value: any): FindingWithEvidence[] {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? (() => {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })()
+    : [];
+
+  return source
+    .filter((item) => item && typeof item === "object")
+    .map((item: Record<string, unknown>) => {
+      const fieldRef = String(item.field_ref ?? item.fieldRef ?? "").trim();
+      const explanation = String(item.explanation ?? item.problem ?? "").trim();
+      const evidenceExcerpt = String(item.evidence_excerpt ?? item.evidenceExcerpt ?? "")
+        .trim()
+        .slice(0, 200);
+      const severityToken = normalizeToken(item.severity);
+      const severity: "INFO" | "WARNING" | "CRITICAL" =
+        severityToken === "CRITICAL" ? "CRITICAL" : severityToken === "INFO" ? "INFO" : "WARNING";
+
+      if (!fieldRef || !explanation) return null;
+
+      return {
+        field_ref: fieldRef,
+        explanation,
+        evidence_excerpt: evidenceExcerpt,
+        severity: !evidenceExcerpt && severity === "CRITICAL" ? "WARNING" : severity,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 50) as FindingWithEvidence[];
+}
+
+function normalizeConfidenceLevel(value: any): ConfidenceLevel | null {
+  const token = normalizeToken(value);
+  if (token === "ALTO" || token === "MODERADO" || token === "BAIXO") {
+    return token as ConfidenceLevel;
+  }
+  return null;
+}
+
+function normalizeTechnicalFailureType(value: any): TechnicalFailureType | null {
+  const token = normalizeToken(value);
+  if (
+    token === "AUSENCIA" ||
+    token === "CONTRADICAO" ||
+    token === "INSUFICIENCIA_PROBATORIA" ||
+    token === "INCONSISTENCIA_INTERNA"
+  ) {
+    return token as TechnicalFailureType;
+  }
+  return null;
+}
+
 function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
   if (!raw) return null;
   const value = parseMaybeJson<Record<string, any>>(raw);
@@ -635,6 +754,97 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
     rawAiResult?.parsedPpp ??
     null;
   const results = normalizeAnalysisPayload(value.results ?? value.rules_result ?? value.rulesResult);
+  const formalConformity = normalizeFormalConformity(
+    value.formalConformity ??
+      value.formal_conformity ??
+      extraMetadata?.formalConformity ??
+      extraMetadata?.formal_conformity ??
+      rawAiResult?.formalConformity ??
+      rawAiResult?.formal_conformity
+  );
+  const technicalConformity = normalizeTechnicalConformity(
+    value.technicalConformity ??
+      value.technical_conformity ??
+      extraMetadata?.technicalConformity ??
+      extraMetadata?.technical_conformity ??
+      rawAiResult?.technicalConformity ??
+      rawAiResult?.technical_conformity
+  );
+  const probativeToken = normalizeToken(
+    value.probativeValue ??
+      value.probative_value ??
+      extraMetadata?.probativeValue ??
+      extraMetadata?.probative_value ??
+      rawAiResult?.probativeValue ??
+      rawAiResult?.probative_value
+  );
+  const probativeValue =
+    probativeToken === "SUFICIENTE" || probativeToken === "INSUFICIENTE" || probativeToken === "INEXISTENTE"
+      ? (probativeToken as ProbativeValue)
+      : deriveProbativeValue(formalConformity, technicalConformity);
+  const nextActions =
+    ensureStringArray(
+      value.nextActions ??
+        value.next_actions ??
+        extraMetadata?.nextActions ??
+        extraMetadata?.next_actions ??
+        rawAiResult?.nextActions ??
+        rawAiResult?.next_actions
+    ) ?? [];
+  const findingsWithEvidence = normalizeFindingsWithEvidence(
+    value.findingsWithEvidence ??
+      value.findings_with_evidence ??
+      extraMetadata?.findingsWithEvidence ??
+      extraMetadata?.findings_with_evidence ??
+      rawAiResult?.findingsWithEvidence ??
+      rawAiResult?.findings_with_evidence
+  );
+  const analysisScope =
+    String(
+      value.analysisScope ??
+        value.analysis_scope ??
+        extraMetadata?.analysisScope ??
+        extraMetadata?.analysis_scope ??
+        rawAiResult?.analysisScope ??
+        rawAiResult?.analysis_scope ??
+        ""
+    ).trim() || null;
+  const analysisEngineVersion =
+    String(
+      value.analysisEngineVersion ??
+        value.analysis_engine_version ??
+        extraMetadata?.analysisEngineVersion ??
+        extraMetadata?.analysis_engine_version ??
+        rawAiResult?.analysisEngineVersion ??
+        rawAiResult?.analysis_engine_version ??
+        ""
+    ).trim() || null;
+  const analysisRulesVersion =
+    String(
+      value.analysisRulesVersion ??
+        value.analysis_rules_version ??
+        extraMetadata?.analysisRulesVersion ??
+        extraMetadata?.analysis_rules_version ??
+        rawAiResult?.analysisRulesVersion ??
+        rawAiResult?.analysis_rules_version ??
+        ""
+    ).trim() || null;
+  const confidenceLevel = normalizeConfidenceLevel(
+    value.confidenceLevel ??
+      value.confidence_level ??
+      extraMetadata?.confidenceLevel ??
+      extraMetadata?.confidence_level ??
+      rawAiResult?.confidenceLevel ??
+      rawAiResult?.confidence_level
+  );
+  const technicalFailureType = normalizeTechnicalFailureType(
+    value.technicalFailureType ??
+      value.technical_failure_type ??
+      extraMetadata?.technicalFailureType ??
+      extraMetadata?.technical_failure_type ??
+      rawAiResult?.technicalFailureType ??
+      rawAiResult?.technical_failure_type
+  );
 
   return {
     id: String(idSource),
@@ -667,6 +877,16 @@ function normalizeCaseAnalysis(raw: any): CaseAnalysis | null {
       value.extraMetadata ??
       value.metadata ??
       null,
+    formalConformity,
+    technicalConformity,
+    probativeValue,
+    nextActions,
+    findingsWithEvidence,
+    analysisScope,
+    analysisEngineVersion,
+    analysisRulesVersion,
+    confidenceLevel,
+    technicalFailureType,
   };
 }
 
@@ -1801,7 +2021,7 @@ export type AdminCaseDetail = {
   worker: { id: string; name: string | null; cpf: string | null; birth_date?: string } | null;
   company: { id: string; name: string | null; cnpj: string | null } | null;
   documents: CaseDocument[];
-  analysis: { id: string; final_classification: string | null; created_at: string } | null;
+  analysis: CaseAnalysis | null;
   payment: { id: string; status: string; amount: number | null; paid_at: string | null } | null;
   supportRequest: { id: string; status: string; message: string | null; created_at: string; resolved_at: string | null } | null;
   workflowLogs: { id: string; step: string; status: string; message: string | null; created_at: string }[];
@@ -1843,7 +2063,10 @@ export async function sendAdminBillingControlTestEmail(payload: {
 export async function adminGetCase(caseId: string): Promise<AdminCaseDetail> {
   const res = await apiFetch(`/admin/cases/${caseId}`);
   const data = await handleJsonResponse(res);
-  return data as AdminCaseDetail;
+  return {
+    ...(data as AdminCaseDetail),
+    analysis: normalizeCaseAnalysis((data as AdminCaseDetail)?.analysis),
+  } as AdminCaseDetail;
 }
 
 /**
@@ -1899,6 +2122,7 @@ export type PublicCaseResponse = {
 export type PublicCaseDetail = {
   case: any;
   payment: any | null;
+  analysis?: CaseAnalysis | null;
 };
 
 export async function validateUnionCodePublic(code: string): Promise<PublicUnionCodeResponse> {
@@ -1956,7 +2180,19 @@ export async function createPublicPayment(caseId: string): Promise<{ payment_url
 
 export async function getPublicCase(caseId: string): Promise<PublicCaseDetail> {
   const res = await apiFetch(`/public/cases/${caseId}`);
-  return handleJsonResponse(res);
+  const data = await handleJsonResponse(res);
+  const analysis = normalizeCaseAnalysis(data?.analysis ?? data?.case?.analysis);
+  if (analysis && data && typeof data === "object") {
+    return {
+      ...(data as PublicCaseDetail),
+      case: {
+        ...(data as PublicCaseDetail).case,
+        analysis,
+      },
+      analysis,
+    } as PublicCaseDetail & { analysis?: CaseAnalysis | null };
+  }
+  return data as PublicCaseDetail;
 }
 
 export async function updatePublicCaseDetails(

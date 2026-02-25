@@ -963,6 +963,61 @@ export default function CaseDetailPage() {
     analysis?.finalClassification ??
     analysis?.final_classification ??
     null;
+  const formalConformity =
+    analysisPayload.formalConformity ??
+    analysisPayload.formal_conformity ??
+    analysis?.formalConformity ??
+    null;
+  const technicalConformity =
+    analysisPayload.technicalConformity ??
+    analysisPayload.technical_conformity ??
+    analysis?.technicalConformity ??
+    null;
+  const probativeValue =
+    analysisPayload.probativeValue ??
+    analysisPayload.probative_value ??
+    analysis?.probativeValue ??
+    null;
+  const confidenceLevel =
+    analysisPayload.confidenceLevel ??
+    analysisPayload.confidence_level ??
+    analysis?.confidenceLevel ??
+    null;
+  const formalConformityNormalized =
+    formalConformity === "CONFORME" || formalConformity === "NAO_CONFORME"
+      ? formalConformity
+      : null;
+  const technicalConformityNormalized =
+    technicalConformity === "CONFORME" ||
+    technicalConformity === "PENDENTE" ||
+    technicalConformity === "NAO_CONFORME"
+      ? technicalConformity
+      : null;
+  const probativeValueNormalized =
+    probativeValue === "SUFICIENTE" ||
+    probativeValue === "INSUFICIENTE" ||
+    probativeValue === "INEXISTENTE"
+      ? probativeValue
+      : null;
+  const confidenceLevelNormalized =
+    confidenceLevel === "ALTO" || confidenceLevel === "MODERADO" || confidenceLevel === "BAIXO"
+      ? confidenceLevel
+      : null;
+  const findingsWithEvidence = safeParseJsonArray<{
+    field_ref?: string;
+    explanation?: string;
+    evidence_excerpt?: string;
+    severity?: string;
+  }>(
+    analysisPayload.findingsWithEvidence ??
+      analysisPayload.findings_with_evidence ??
+      analysis?.findingsWithEvidence
+  );
+  const analysisSuggestedActions = safeParseJsonArray<string>(
+    analysisPayload.nextActions ??
+      analysisPayload.next_actions ??
+      analysis?.nextActions
+  );
   const analysisBlocks = safeParseJsonArray<AnalysisBlock>(
     safeGet(analysisPayload, "results.blocks") ??
       safeGet(analysis, "results.blocks") ??
@@ -1108,7 +1163,10 @@ export default function CaseDetailPage() {
       : "ERRO DE PROCESSAMENTO";
   const showErrorBanner = (status === "error" || hasErrorPayload) && !transientGatewaySubmit;
   const slaInfo = getSlaByStatus(status);
-  const nextSteps = getOperationalNextSteps(effectiveErrorCode, hasPppInput);
+  const nextSteps =
+    analysisSuggestedActions.length > 0
+      ? analysisSuggestedActions.slice(0, 5)
+      : getOperationalNextSteps(effectiveErrorCode, hasPppInput);
   const timelineEvents = (() => {
     const events: TimelineEvent[] = [];
     const push = (
@@ -1248,6 +1306,11 @@ export default function CaseDetailPage() {
         lastErrorMessage={showErrorBanner ? errorReasonPublic : null}
         nextActions={nextSteps}
         updatedAt={caseRecord.updatedAt || null}
+        formalConformity={formalConformityNormalized}
+        technicalConformity={technicalConformityNormalized}
+        probativeValue={probativeValueNormalized}
+        confidenceLevel={confidenceLevelNormalized}
+        findingsWithEvidence={findingsWithEvidence}
       />
 
       <div className="bg-white rounded-lg shadow p-6 space-y-3">

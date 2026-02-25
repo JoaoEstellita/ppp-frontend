@@ -181,6 +181,7 @@ export default function PublicCaseStatusPage() {
   const [downloadResultError, setDownloadResultError] = useState<string | null>(null);
   const [reuploading, setReuploading] = useState(false);
   const [reuploadError, setReuploadError] = useState<string | null>(null);
+  const supportEmail = "contato@conectivos.net";
 
   const [editingDetails, setEditingDetails] = useState(false);
   const [detailsSaving, setDetailsSaving] = useState(false);
@@ -225,10 +226,17 @@ export default function PublicCaseStatusPage() {
 
   useEffect(() => {
     const status = caseDetail?.case?.status;
-    if (status !== "processing" && status !== "paid_processing") return;
-    const timer = setInterval(fetchCase, 10000);
+    const settled = isPaymentSettled(
+      status,
+      caseDetail?.payment?.status,
+      Boolean(caseDetail?.case?.manual_override_paid)
+    );
+    const fastPolling = status === "processing" || status === "paid_processing";
+    const slowPolling = status === "ready_to_process" && settled;
+    if (!fastPolling && !slowPolling) return;
+    const timer = setInterval(fetchCase, fastPolling ? 10000 : 30000);
     return () => clearInterval(timer);
-  }, [caseDetail?.case?.status, fetchCase]);
+  }, [caseDetail?.case?.status, caseDetail?.case?.manual_override_paid, caseDetail?.payment?.status, fetchCase]);
 
   useEffect(() => {
     if (!caseDetail?.case) return;
@@ -461,13 +469,47 @@ export default function PublicCaseStatusPage() {
     Boolean(caseDetail?.case?.has_divergence);
 
   const showIdentityEdit = showErrorBanner || status === "done_warning";
+  const isDone = status === "done" || status === "done_warning";
+  const isProcessing = status === "processing" || status === "paid_processing";
   const validationIssues = Array.isArray(caseDetail?.case?.validation_issues)
     ? caseDetail.case.validation_issues
     : [];
   const verifierIssues = Array.isArray(caseDetail?.case?.verifier_issues)
     ? caseDetail.case.verifier_issues
     : [];
+  const analysisData = caseDetail?.analysis ?? caseDetail?.case?.analysis ?? null;
+  const formalConformity =
+    caseDetail?.case?.formal_conformity ??
+    analysisData?.formalConformity ??
+    analysisData?.extraMetadata?.formalConformity ??
+    null;
+  const technicalConformity =
+    caseDetail?.case?.technical_conformity ??
+    analysisData?.technicalConformity ??
+    analysisData?.extraMetadata?.technicalConformity ??
+    null;
+  const probativeValue =
+    caseDetail?.case?.probative_value ??
+    analysisData?.probativeValue ??
+    analysisData?.extraMetadata?.probativeValue ??
+    null;
+  const confidenceLevel =
+    caseDetail?.case?.confidence_level ??
+    analysisData?.confidenceLevel ??
+    analysisData?.extraMetadata?.confidenceLevel ??
+    null;
+  const findingsWithEvidence = Array.isArray(
+    caseDetail?.case?.findings_with_evidence ?? analysisData?.findingsWithEvidence
+  )
+    ? (caseDetail?.case?.findings_with_evidence ?? analysisData?.findingsWithEvidence)
+    : [];
+  const suggestedActions = Array.isArray(caseDetail?.case?.next_actions ?? analysisData?.nextActions)
+    ? (caseDetail?.case?.next_actions ?? analysisData?.nextActions)
+    : [];
   const nextActions = (() => {
+    if (suggestedActions.length > 0) {
+      return suggestedActions.slice(0, 3);
+    }
     if (showErrorBanner) {
       return [
         "Revise os dados de cadastro e compare com o documento.",
@@ -489,6 +531,20 @@ export default function PublicCaseStatusPage() {
     }
     return ["Acompanhe as proximas atualizacoes do caso por este link."];
   })();
+
+  function handleSupportContact() {
+    const subject = encodeURIComponent(`Suporte PPP - Caso ${caseDetail?.case?.id || caseId || ""}`);
+    const body = encodeURIComponent(
+      [
+        `Caso: ${caseDetail?.case?.id || caseId || "-"}`,
+        `Status: ${status || "-"}`,
+        `Erro: ${resolvePublicErrorMessage(lastErrorCode, lastErrorMessage) || "-"}`,
+        "",
+        "Descreva abaixo o que aconteceu:",
+      ].join("\n")
+    );
+    window.open(`mailto:${supportEmail}?subject=${subject}&body=${body}`, "_blank");
+  }
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -567,8 +623,43 @@ export default function PublicCaseStatusPage() {
             lastErrorMessage={showErrorBanner ? resolvePublicErrorMessage(lastErrorCode, lastErrorMessage) : null}
             nextActions={nextActions}
             updatedAt={caseDetail?.case?.updated_at ?? null}
+            formalConformity={formalConformity}
+            technicalConformity={technicalConformity}
+            probativeValue={probativeValue}
+            confidenceLevel={confidenceLevel}
+            findingsWithEvidence={findingsWithEvidence}
           />
         </div>
+
+        {(Boolean(resultDoc) || showErrorBanner) && (
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              {Boolean(resultDoc) && (
+                <Button
+                  onClick={handleDownloadResult}
+                  disabled={downloadingResult}
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  {downloadingResult ? "Gerando..." : "Baixar resultado"}
+                </Button>
+              )}
+              {showErrorBanner && (
+                <>
+                  <a
+                    href="#reenviar-pdf"
+                    className="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Reenviar PDF agora
+                  </a>
+                  <Button variant="outline" onClick={handleSupportContact}>
+                    Pedir suporte
+                  </Button>
+                </>
+              )}
+            </div>
+            {downloadResultError && <p className="mt-2 text-xs text-red-600">{downloadResultError}</p>}
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
           <div className="space-y-6">
@@ -713,7 +804,7 @@ export default function PublicCaseStatusPage() {
               {downloadResultError && <p className="mt-2 text-xs text-red-600">{downloadResultError}</p>}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div id="reenviar-pdf" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">Reenviar PDF</h3>
               <p className="mt-1 text-sm text-slate-600">
                 Use esta ação quando houver falha de leitura ou solicitação de atualização.
@@ -761,7 +852,11 @@ export default function PublicCaseStatusPage() {
 
               {paymentSettled ? (
                 <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                  Pagamento confirmado. Fluxo liberado para processamento.
+                  {isDone
+                    ? "Pagamento confirmado."
+                    : isProcessing
+                    ? "Pagamento confirmado. Processamento em andamento."
+                    : "Pagamento confirmado. Aguardando inicio do processamento. Esta pagina atualiza automaticamente a cada 30 segundos."}
                 </div>
               ) : paymentUrl ? (
                 <a
@@ -790,6 +885,26 @@ export default function PublicCaseStatusPage() {
               </p>
               <p className="mt-2 break-all text-xs text-slate-500">{caseDetail.case.id}</p>
             </div>
+
+            {showErrorBanner && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-red-800">Precisa de ajuda?</h3>
+                <p className="mt-2 text-sm text-red-700">
+                  Se o erro persistir, reenvie o PDF e acione o suporte com o codigo do caso.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a
+                    href="#reenviar-pdf"
+                    className="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-medium text-red-700 border border-red-200 hover:bg-red-100"
+                  >
+                    Reenviar PDF
+                  </a>
+                  <Button variant="outline" onClick={handleSupportContact}>
+                    Pedir suporte
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {!paymentSettled && searchParams?.get("payment") === "success" && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
