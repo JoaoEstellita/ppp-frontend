@@ -72,3 +72,7 @@ ppp-frontend/
 - Os dados são armazenados em memória (não persistem após recarregar a página)
 - A funcionalidade de geração de PDF está em desenvolvimento
 
+## Continuidade do Projeto
+
+- Handoff atualizado: `HANDOFF_CONTINUIDADE_2026-02-25.md`
+
